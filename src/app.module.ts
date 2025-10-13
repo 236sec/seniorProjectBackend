@@ -1,12 +1,55 @@
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
+import * as mongoose from 'mongoose';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        const logger = new Logger('MongoDB');
+
+        mongoose.set(
+          'debug',
+          (
+            collectionName: string,
+            methodName: string,
+            ...methodArgs: unknown[]
+          ) => {
+            let query = '';
+            if (methodArgs[0] !== undefined) {
+              if (typeof methodArgs[0] === 'string') {
+                query = methodArgs[0];
+              } else if (
+                typeof methodArgs[0] === 'object' &&
+                methodArgs[0] !== null
+              ) {
+                query = JSON.stringify(methodArgs[0]);
+              } else if (
+                typeof methodArgs[0] === 'number' ||
+                typeof methodArgs[0] === 'boolean'
+              ) {
+                query = String(methodArgs[0]);
+              }
+            }
+            logger.debug(`${collectionName}.${methodName}(${query})`);
+          },
+        );
+        return {
+          uri: configService.get<string>('MONGODB_URI'),
+          user: configService.get<string>('MONGODB_USER'),
+          pass: configService.get<string>('MONGODB_PASS'),
+          dbName: configService.get<string>('MONGODB_DATABASE'),
+          autoIndex: true,
+        };
+      },
+      inject: [ConfigService],
     }),
   ],
   controllers: [AppController],

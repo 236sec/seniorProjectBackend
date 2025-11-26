@@ -8,10 +8,10 @@ export class User {
   // @Prop({ type: Types.ObjectId, ref: 'Product', required: true })
   // userId: Types.ObjectId;
 
-  @Prop({ required: true, unique: true, index: true })
+  @Prop({ required: true, index: true })
   email: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, index: true })
   provider: string;
 
   @Prop({ required: true })

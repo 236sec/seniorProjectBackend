@@ -1,25 +1,30 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { UsersService } from './users.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
+import { CreateUserDto } from './dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UsersService } from './users.service';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post('/login')
-  login(@Body() loginUserDto: LoginUserDto) {
-    return this.usersService.login(loginUserDto);
+  async login(@Body() loginUserDto: LoginUserDto) {
+    const result = await this.usersService.login(loginUserDto);
+    if (!result) {
+      throw new UnauthorizedException();
+    }
+    return result;
   }
 
   @Post()

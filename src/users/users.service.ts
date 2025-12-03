@@ -1,6 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -24,19 +24,23 @@ export class UsersService {
     return createdUser.save();
   }
 
-  async findOne(id: string): Promise<User | null> {
-    return this.userModel.findById(id).exec();
+  async findOne(id: Types.ObjectId): Promise<User | null> {
+    return this.userModel.findById(id).populate('wallets').exec();
+  }
+
+  async findOneWithWallets(id: Types.ObjectId): Promise<User | null> {
+    return this.userModel.findById(id).populate('wallets').exec();
   }
 
   findAll() {
     return this.userModel.find().exec();
   }
 
-  update(id: string, updateUserDto: UpdateUserDto) {
+  update(id: Types.ObjectId, updateUserDto: UpdateUserDto) {
     return this.userModel.findByIdAndUpdate(id, updateUserDto).exec();
   }
 
-  remove(id: string) {
+  remove(id: Types.ObjectId) {
     return this.userModel.findByIdAndDelete(id).exec();
   }
 
@@ -46,6 +50,16 @@ export class UsersService {
         email: loginUserDto.email,
         provider: loginUserDto.provider,
       })
+      .exec();
+  }
+
+  async addWalletToUser(userId: Types.ObjectId, walletId: Types.ObjectId) {
+    return this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { $push: { wallets: walletId } },
+        { new: true },
+      )
       .exec();
   }
 }

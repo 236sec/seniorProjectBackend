@@ -13,6 +13,7 @@ import { AppService } from './app.service';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { UsersModule } from './users/users.module';
 import { AlchemysModule } from './alchemys/alchemys.module';
+import { WalletsModule } from './wallets/wallets.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { AlchemysModule } from './alchemys/alchemys.module';
     }),
     UsersModule,
     AlchemysModule,
+    WalletsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

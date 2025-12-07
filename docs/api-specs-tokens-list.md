@@ -43,7 +43,12 @@ Retrieves a paginated list of cryptocurrency tokens from the database. Supports 
       "_id": "string",
       "id": "string",
       "symbol": "string",
-      "name": "string"
+      "name": "string",
+      "image": {
+        "thumb": "string",
+        "small": "string",
+        "large": "string"
+      }
     }
   ],
   "pagination": {
@@ -61,12 +66,16 @@ Retrieves a paginated list of cryptocurrency tokens from the database. Supports 
 
 #### Data Object (Array of Tokens)
 
-| Field    | Type   | Description                               |
-| -------- | ------ | ----------------------------------------- |
-| `_id`    | string | MongoDB document ID                       |
-| `id`     | string | Unique token identifier (e.g., "bitcoin") |
-| `symbol` | string | Token symbol (e.g., "btc")                |
-| `name`   | string | Full token name (e.g., "Bitcoin")         |
+| Field         | Type   | Description                               |
+| ------------- | ------ | ----------------------------------------- |
+| `_id`         | string | MongoDB document ID                       |
+| `id`          | string | Unique token identifier (e.g., "bitcoin") |
+| `symbol`      | string | Token symbol (e.g., "btc")                |
+| `name`        | string | Full token name (e.g., "Bitcoin")         |
+| `image`       | object | Token image URLs (optional)               |
+| `image.thumb` | string | Thumbnail image URL (optional)            |
+| `image.small` | string | Small image URL (optional)                |
+| `image.large` | string | Large image URL (optional)                |
 
 #### Pagination Object
 
@@ -98,13 +107,23 @@ GET /tokens
       "_id": "674a1b2c3d4e5f6g7h8i9j0k",
       "id": "bitcoin",
       "symbol": "btc",
-      "name": "Bitcoin"
+      "name": "Bitcoin",
+      "image": {
+        "thumb": "https://assets.coingecko.com/coins/images/1/thumb/bitcoin.png",
+        "small": "https://assets.coingecko.com/coins/images/1/small/bitcoin.png",
+        "large": "https://assets.coingecko.com/coins/images/1/large/bitcoin.png"
+      }
     },
     {
       "_id": "674a1b2c3d4e5f6g7h8i9j1l",
       "id": "ethereum",
       "symbol": "eth",
-      "name": "Ethereum"
+      "name": "Ethereum",
+      "image": {
+        "thumb": "https://assets.coingecko.com/coins/images/279/thumb/ethereum.png",
+        "small": "https://assets.coingecko.com/coins/images/279/small/ethereum.png",
+        "large": "https://assets.coingecko.com/coins/images/279/large/ethereum.png"
+      }
     }
   ],
   "pagination": {
@@ -133,13 +152,23 @@ GET /tokens?page=2&limit=5
       "_id": "674a1b2c3d4e5f6g7h8i9j5p",
       "id": "cardano",
       "symbol": "ada",
-      "name": "Cardano"
+      "name": "Cardano",
+      "image": {
+        "thumb": "https://assets.coingecko.com/coins/images/975/thumb/cardano.png",
+        "small": "https://assets.coingecko.com/coins/images/975/small/cardano.png",
+        "large": "https://assets.coingecko.com/coins/images/975/large/cardano.png"
+      }
     },
     {
       "_id": "674a1b2c3d4e5f6g7h8i9j6q",
       "id": "solana",
       "symbol": "sol",
-      "name": "Solana"
+      "name": "Solana",
+      "image": {
+        "thumb": "https://assets.coingecko.com/coins/images/4128/thumb/solana.png",
+        "small": "https://assets.coingecko.com/coins/images/4128/small/solana.png",
+        "large": "https://assets.coingecko.com/coins/images/4128/large/solana.png"
+      }
     }
   ],
   "pagination": {
@@ -168,13 +197,23 @@ GET /tokens?search=bitcoin
       "_id": "674a1b2c3d4e5f6g7h8i9j0k",
       "id": "bitcoin",
       "symbol": "btc",
-      "name": "Bitcoin"
+      "name": "Bitcoin",
+      "image": {
+        "thumb": "https://assets.coingecko.com/coins/images/1/thumb/bitcoin.png",
+        "small": "https://assets.coingecko.com/coins/images/1/small/bitcoin.png",
+        "large": "https://assets.coingecko.com/coins/images/1/large/bitcoin.png"
+      }
     },
     {
       "_id": "674a1b2c3d4e5f6g7h8i9j7r",
       "id": "bitcoin-cash",
       "symbol": "bch",
-      "name": "Bitcoin Cash"
+      "name": "Bitcoin Cash",
+      "image": {
+        "thumb": "https://assets.coingecko.com/coins/images/780/thumb/bitcoin-cash.png",
+        "small": "https://assets.coingecko.com/coins/images/780/small/bitcoin-cash.png",
+        "large": "https://assets.coingecko.com/coins/images/780/large/bitcoin-cash.png"
+      }
     }
   ],
   "pagination": {
@@ -203,13 +242,23 @@ GET /tokens?page=1&limit=20&search=eth
       "_id": "674a1b2c3d4e5f6g7h8i9j1l",
       "id": "ethereum",
       "symbol": "eth",
-      "name": "Ethereum"
+      "name": "Ethereum",
+      "image": {
+        "thumb": "https://assets.coingecko.com/coins/images/279/thumb/ethereum.png",
+        "small": "https://assets.coingecko.com/coins/images/279/small/ethereum.png",
+        "large": "https://assets.coingecko.com/coins/images/279/large/ethereum.png"
+      }
     },
     {
       "_id": "674a1b2c3d4e5f6g7h8i9j8s",
       "id": "ethereum-classic",
       "symbol": "etc",
-      "name": "Ethereum Classic"
+      "name": "Ethereum Classic",
+      "image": {
+        "thumb": "https://assets.coingecko.com/coins/images/453/thumb/ethereum-classic.png",
+        "small": "https://assets.coingecko.com/coins/images/453/small/ethereum-classic.png",
+        "large": "https://assets.coingecko.com/coins/images/453/large/ethereum-classic.png"
+      }
     }
   ],
   "pagination": {
@@ -400,6 +449,14 @@ export class TokensController {
             id: 'bitcoin',
             symbol: 'btc',
             name: 'Bitcoin',
+            image: {
+              thumb:
+                'https://assets.coingecko.com/coins/images/1/thumb/bitcoin.png',
+              small:
+                'https://assets.coingecko.com/coins/images/1/small/bitcoin.png',
+              large:
+                'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
+            },
           },
         ],
         pagination: {
@@ -526,6 +583,7 @@ Create a React component that displays a paginated list of cryptocurrency tokens
 
 ## Changelog
 
-| Version | Date       | Changes                                    |
-| ------- | ---------- | ------------------------------------------ |
-| 1.0.0   | 2025-12-07 | Initial API specification document created |
+| Version | Date       | Changes                                         |
+| ------- | ---------- | ----------------------------------------------- |
+| 1.1.0   | 2025-12-07 | Added image field with thumb, small, large URLs |
+| 1.0.0   | 2025-12-07 | Initial API specification document created      |

@@ -57,13 +57,53 @@ export class TokensService {
 
       this.logger.log('Starting token database update from CoinGecko...');
 
-      // Fetch all coins from CoinGecko
-      const coins = await this.coingeckoService.listCoins();
+      // Fetch coins with images from CoinGecko markets endpoint
+      const allCoins: Array<{
+        id: string;
+        symbol: string;
+        name: string;
+        image: string;
+      }> = [];
+      let page = 1;
+      const perPage = 250;
+      let hasMore = true;
 
-      this.logger.log(`Fetched ${coins.length} coins from CoinGecko`);
+      // Fetch multiple pages to get more coins with images
+      while (hasMore && allCoins.length < 5000) {
+        try {
+          const coins = await this.coingeckoService.getCoinsMarkets(
+            page,
+            perPage,
+          );
+
+          if (coins.length === 0) {
+            hasMore = false;
+          } else {
+            allCoins.push(...coins);
+            this.logger.log(
+              `Fetched page ${page} with ${coins.length} coins. Total: ${allCoins.length}`,
+            );
+            page++;
+
+            // Add delay to avoid rate limiting
+            if (hasMore && coins.length === perPage) {
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            } else {
+              hasMore = false;
+            }
+          }
+        } catch (error) {
+          this.logger.error(`Error fetching page ${page}: ${error}`);
+          hasMore = false;
+        }
+      }
+
+      this.logger.log(
+        `Fetched ${allCoins.length} coins with images from CoinGecko`,
+      );
 
       // Use bulkWrite for efficient upsert operations
-      const bulkOps = coins.map((coin) => ({
+      const bulkOps = allCoins.map((coin) => ({
         updateOne: {
           filter: { id: coin.id },
           update: {
@@ -71,6 +111,11 @@ export class TokensService {
               id: coin.id,
               symbol: coin.symbol,
               name: coin.name,
+              image: {
+                thumb: coin.image,
+                small: coin.image,
+                large: coin.image,
+              },
             },
           },
           upsert: true,
@@ -84,7 +129,7 @@ export class TokensService {
       await this.tokenUpdateLogModel.create({
         syncType: 'coingecko_sync',
         lastUpdatedAt: now,
-        totalCoins: coins.length,
+        totalCoins: allCoins.length,
         inserted: result.upsertedCount,
         updated: result.modifiedCount,
       });
@@ -95,7 +140,7 @@ export class TokensService {
 
       return {
         success: true,
-        totalCoins: coins.length,
+        totalCoins: allCoins.length,
         inserted: result.upsertedCount,
         updated: result.modifiedCount,
         message: 'Token database updated successfully',

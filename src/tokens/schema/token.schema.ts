@@ -14,8 +14,19 @@ export class Token {
   @Prop({ required: true })
   name: string;
 
-  @Prop()
-  image?: string;
+  @Prop({
+    type: {
+      thumb: { type: String, required: false },
+      small: { type: String, required: false },
+      large: { type: String, required: false },
+    },
+    required: false,
+  })
+  image?: {
+    thumb?: string;
+    small?: string;
+    large?: string;
+  };
 }
 
 export const TokenSchema = SchemaFactory.createForClass(Token);

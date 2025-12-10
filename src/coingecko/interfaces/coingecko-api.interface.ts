@@ -24,3 +24,14 @@ export interface CoinMarketData {
 }
 
 export type CoingeckoMarketsResponse = CoinMarketData[];
+
+export interface CoinDetailData {
+  id: string;
+  symbol: string;
+  name: string;
+  image: {
+    thumb: string;
+    small: string;
+    large: string;
+  };
+}

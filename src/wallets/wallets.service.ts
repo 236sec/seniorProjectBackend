@@ -7,6 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AlchemysService } from 'src/alchemys/alchemys.service';
+import { CoingeckoService } from 'src/coingecko/coingecko.service';
 import { TokensService } from 'src/tokens/tokens.service';
 import { UsersService } from '../users/users.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
@@ -21,6 +22,7 @@ export class WalletsService {
     private readonly usersService: UsersService,
     private readonly alchemysService: AlchemysService,
     private readonly tokensService: TokensService,
+    private readonly coingeckoService: CoingeckoService,
   ) {}
 
   async create(userId: Types.ObjectId, createWalletDto: CreateWalletDto) {
@@ -107,6 +109,60 @@ export class WalletsService {
           coinGeckoChainId,
           balance.contractAddress,
         );
+
+        // If token exists but has no image, fetch it from CoinGecko and update database
+        if (
+          token &&
+          (!token.image ||
+            !token.image.thumb ||
+            !token.image.small ||
+            !token.image.large)
+        ) {
+          try {
+            this.logger.debug(
+              `Token ${token.id} missing image, fetching from CoinGecko...`,
+            );
+
+            const coinData = await this.coingeckoService.getCoinById(
+              token.id as string,
+            );
+
+            if (coinData?.image) {
+              // Update token in database with new image
+              await this.tokensService.updateTokenImage(
+                token.id as string,
+                coinData.image,
+              );
+
+              // Update the token object for the response
+              token.image = coinData.image;
+
+              this.logger.debug(
+                `Updated image for token ${token.id} in database`,
+              );
+            }
+          } catch (error: unknown) {
+            const errorResponse =
+              error &&
+              typeof error === 'object' &&
+              'response' in error &&
+              typeof error.response === 'object' &&
+              error.response &&
+              'status' in error.response
+                ? (error.response as { status: number })
+                : null;
+
+            if (errorResponse?.status === 429) {
+              this.logger.warn(
+                `Rate limit hit while fetching image for token ${token.id}. Continuing with existing data...`,
+              );
+            } else {
+              this.logger.error(
+                `Error fetching image for token ${token.id}: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          }
+        }
 
         return {
           contractAddress: balance.contractAddress,

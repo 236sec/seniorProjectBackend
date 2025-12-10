@@ -32,6 +32,23 @@ export class TokensController {
     );
   }
 
+  @Get('update-images')
+  async updateImages(
+    @Query('batchSize') batchSize?: number,
+    @Query('startIndex') startIndex?: number,
+    @Query('endIndex') endIndex?: number,
+    @Query('allTokens') allTokens?: boolean,
+  ) {
+    if (allTokens) {
+      return this.tokensService.handleTokenImageUpdate();
+    }
+    return this.tokensService.updateTokenImages(
+      batchSize,
+      startIndex,
+      endIndex,
+    );
+  }
+
   @Get()
   findAll(@Query() query: QueryTokensDto) {
     return this.tokensService.findAll(query.page, query.limit, query.search);

@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import {
+  CoinDetailData,
   CoingeckoListCoinsResponse,
   CoingeckoListCoinsWithPlatformsResponse,
   CoingeckoMarketsResponse,
@@ -97,6 +98,36 @@ export class CoingeckoService {
 
       this.logger.error(
         `Error fetching coins markets from CoinGecko: ${errorMessage}`,
+      );
+      throw error;
+    }
+  }
+
+  async getCoinById(coinId: string): Promise<CoinDetailData> {
+    const apiUrl = this.configService.get<string>('COINGECKO_API_URL');
+    const url = `${apiUrl}/coins/${coinId}`;
+
+    const params = {
+      localization: false,
+      tickers: false,
+      market_data: false,
+      community_data: false,
+      developer_data: false,
+      sparkline: false,
+    };
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(url, { params }),
+      );
+
+      return response.data as CoinDetailData;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(
+        `Error fetching coin ${coinId} from CoinGecko: ${errorMessage}`,
       );
       throw error;
     }

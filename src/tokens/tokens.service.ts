@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CoingeckoService } from 'src/coingecko/coingecko.service';
-import { CoingeckoListCoinsWithPlatformsResponse } from 'src/coingecko/interfaces/coingecko-api.interface';
+import {
+  CoinDetailData,
+  CoingeckoListCoinsWithPlatformsResponse,
+} from 'src/coingecko/interfaces/coingecko-api.interface';
 import {
   TokenContract,
   TokenContractDocument,
@@ -571,6 +574,208 @@ export class TokensService {
         message: 'Failed to generate token contracts',
       };
     }
+  }
+
+  /**
+   * Update images for existing tokens in MongoDB
+   * Fetches latest image data from CoinGecko by individual coin ID
+   * Rate limit: 30 requests per minute (2000ms delay between requests)
+   * @param batchSize - Number of tokens to process per batch (default: 30)
+   * @param startIndex - Starting index for processing tokens (default: 0)
+   * @param endIndex - Ending index for processing tokens (optional)
+   */
+  async updateTokenImages(
+    batchSize: number = 30,
+    startIndex: number = 0,
+    endIndex?: number,
+  ) {
+    try {
+      this.logger.log('Starting token image update...');
+
+      // Rate limit: 30 requests/min = 1 request every 2 seconds
+      const RATE_LIMIT_DELAY_MS = 2000;
+
+      // Get all tokens from database
+      const totalTokens = await this.tokenModel.countDocuments();
+      const actualEndIndex = endIndex || totalTokens;
+
+      this.logger.log(
+        `Total tokens in database: ${totalTokens}. Processing from index ${startIndex} to ${actualEndIndex}`,
+      );
+      this.logger.log(
+        `Rate limit: 30 requests/min (${RATE_LIMIT_DELAY_MS}ms delay between requests)`,
+      );
+
+      // Get tokens in the specified range
+      const tokens = await this.tokenModel
+        .find()
+        .skip(startIndex)
+        .limit(actualEndIndex - startIndex)
+        .select('_id id symbol name image')
+        .lean()
+        .exec();
+
+      this.logger.log(`Fetched ${tokens.length} tokens to process`);
+
+      let updated = 0;
+      let alreadyHasImage = 0;
+      let errors = 0;
+
+      // Process tokens in batches
+      for (let i = 0; i < tokens.length; i += batchSize) {
+        const batch = tokens.slice(i, i + batchSize);
+        this.logger.log(
+          `Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(tokens.length / batchSize)} (${batch.length} tokens)`,
+        );
+
+        for (const token of batch) {
+          try {
+            // Check if token already has image
+            if (
+              token.image &&
+              token.image.thumb &&
+              token.image.small &&
+              token.image.large
+            ) {
+              alreadyHasImage++;
+              this.logger.debug(
+                `Token ${token.id} already has images, skipping`,
+              );
+              continue;
+            }
+
+            // Fetch coin details from CoinGecko
+            this.logger.debug(`Fetching image data for ${token.id}...`);
+
+            const coinData: CoinDetailData =
+              await this.coingeckoService.getCoinById(token.id as string);
+
+            if (!coinData?.image) {
+              this.logger.debug(`No image data found for token ${token.id}`);
+              errors++;
+              continue;
+            }
+
+            // Update token with image data
+            await this.tokenModel.updateOne(
+              { id: token.id },
+              {
+                $set: {
+                  image: coinData.image,
+                },
+              },
+            );
+
+            updated++;
+            this.logger.debug(`Updated image for token ${token.id}`);
+
+            // Respect rate limit: 30 requests/min = 1 request every 2 seconds
+            await new Promise((resolve) => setTimeout(resolve, 10000));
+          } catch (error: unknown) {
+            errors++;
+            const errorResponse =
+              error &&
+              typeof error === 'object' &&
+              'response' in error &&
+              typeof error.response === 'object' &&
+              error.response &&
+              'status' in error.response
+                ? (error.response as { status: number })
+                : null;
+
+            if (errorResponse?.status === 429) {
+              this.logger.warn(
+                `Rate limit hit while processing token ${token.id}. Stopping batch.`,
+              );
+              // Stop processing this batch on rate limit
+              break;
+            } else {
+              this.logger.error(
+                `Error processing token ${token.id}: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          }
+        }
+
+        // Add delay between batches (optional, already have per-request delay)
+        if (i + batchSize < tokens.length) {
+          this.logger.log(
+            `Waiting ${RATE_LIMIT_DELAY_MS}ms before next batch...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 20000));
+        }
+      }
+
+      const summary = {
+        success: true,
+        message: 'Token image update completed',
+        totalTokensInRange: tokens.length,
+        updated,
+        alreadyHasImage,
+        errors,
+        range: {
+          startIndex,
+          endIndex: actualEndIndex,
+          nextStartIndex: actualEndIndex,
+        },
+      };
+
+      this.logger.log(`Image update summary: ${JSON.stringify(summary)}`);
+
+      return summary;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(`Error updating token images: ${errorMessage}`);
+
+      return {
+        success: false,
+        error: errorMessage,
+        message: 'Failed to update token images',
+      };
+    }
+  }
+
+  async handleTokenImageUpdate() {
+    try {
+      this.logger.log('Starting scheduled token image update...');
+
+      const result = await this.updateTokenImages(50, 0);
+
+      if (result.success) {
+        this.logger.log(
+          `Token image update completed successfully. Updated: ${'updated' in result ? result.updated : 0}, Already had images: ${'alreadyHasImage' in result ? result.alreadyHasImage : 0}, Errors: ${'errors' in result ? result.errors : 0}`,
+        );
+      } else {
+        this.logger.error(`Token image update failed: ${result.message}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error in token image update: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Update a single token's image in the database
+   * @param tokenId - The CoinGecko ID of the token
+   * @param image - The image object with thumb, small, and large URLs
+   */
+  async updateTokenImage(
+    tokenId: string,
+    image: { thumb: string; small: string; large: string },
+  ) {
+    return this.tokenModel
+      .updateOne(
+        { id: tokenId },
+        {
+          $set: {
+            image: image,
+          },
+        },
+      )
+      .exec();
   }
 
   remove(id: string) {

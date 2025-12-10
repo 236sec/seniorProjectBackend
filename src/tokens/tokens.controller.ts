@@ -7,8 +7,29 @@ export class TokensController {
   constructor(private readonly tokensService: TokensService) {}
 
   @Get('db-update')
-  async dbUpdate() {
-    return this.tokensService.updateDatabaseFromCoingecko();
+  async dbUpdate(
+    @Query('startPage') startPage?: number,
+    @Query('endPage') endPage?: number,
+    @Query('perPage') perPage?: number,
+  ) {
+    return this.tokensService.updateDatabaseFromCoingecko(
+      startPage,
+      endPage,
+      perPage,
+    );
+  }
+
+  @Get('generate-contracts')
+  async generateContracts(
+    @Query('batchSize') batchSize?: number,
+    @Query('startIndex') startIndex?: number,
+    @Query('endIndex') endIndex?: number,
+  ) {
+    return this.tokensService.generateTokenContracts(
+      batchSize,
+      startIndex,
+      endIndex,
+    );
   }
 
   @Get()

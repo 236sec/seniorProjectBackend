@@ -41,6 +41,16 @@ export class WalletsController {
     return this.walletsService.findByUserId(userId);
   }
 
+  @Get('on-chain/balance')
+  getOnChainBalance(
+    @Query('address') address: string,
+    @Query('chain') chain: string,
+  ) {
+    // Parse comma-separated chains into array
+    const chains = chain.split(',').map((c) => c.trim());
+    return this.walletsService.getOnChainBalanceByAddress(address, chains);
+  }
+
   @Patch(':id')
   update(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,

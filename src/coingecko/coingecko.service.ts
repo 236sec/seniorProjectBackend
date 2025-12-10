@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import {
   CoingeckoListCoinsResponse,
+  CoingeckoListCoinsWithPlatformsResponse,
   CoingeckoMarketsResponse,
 } from './interfaces/coingecko-api.interface';
 
@@ -41,6 +42,31 @@ export class CoingeckoService {
 
       this.logger.error(
         `Error fetching coin list from CoinGecko: ${errorMessage}`,
+      );
+      throw error;
+    }
+  }
+
+  async listCoinsWithPlatforms() {
+    const apiUrl = this.configService.get<string>('COINGECKO_API_URL');
+    const url = `${apiUrl}/coins/list`;
+
+    const params = {
+      include_platform: true,
+    };
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(url, { params }),
+      );
+
+      return response.data as CoingeckoListCoinsWithPlatformsResponse;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(
+        `Error fetching coin list with platforms from CoinGecko: ${errorMessage}`,
       );
       throw error;
     }

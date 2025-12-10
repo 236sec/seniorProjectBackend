@@ -1,19 +1,26 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { AlchemysService } from 'src/alchemys/alchemys.service';
+import { TokensService } from 'src/tokens/tokens.service';
 import { UsersService } from '../users/users.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { Wallet, WalletDocument } from './schemas/wallet.schema';
 
 @Injectable()
 export class WalletsService {
+  private readonly logger = new Logger(WalletsService.name);
+
   constructor(
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
     private readonly usersService: UsersService,
+    private readonly alchemysService: AlchemysService,
+    private readonly tokensService: TokensService,
   ) {}
 
   async create(userId: Types.ObjectId, createWalletDto: CreateWalletDto) {
@@ -64,5 +71,72 @@ export class WalletsService {
     return this.walletModel
       .findByIdAndUpdate(id, updateWalletDto, { new: true })
       .exec();
+  }
+
+  async getOnChainBalanceByAddress(address: string, chain: string[]) {
+    // Fetch token balances from Alchemy
+    const balancesData = await this.alchemysService.getTokenBalances(
+      chain,
+      address,
+    );
+    this.logger.debug(
+      `Fetched balances for address ${address} on chains ${chain.join(', ')}`,
+    );
+    this.logger.debug(`Balances data: ${JSON.stringify(balancesData)}`);
+
+    // Map chain ID from wallet to CoinGecko platform ID
+    const chainMapping: Record<string, string> = {
+      'eth-mainnet': 'ethereum',
+      'polygon-mainnet': 'polygon-pos',
+      'arb-mainnet': 'arbitrum-one',
+      'base-mainnet': 'base',
+      'opt-mainnet': 'optimistic-ethereum',
+      'blast-mainnet': 'blast',
+      'zksync-mainnet': 'zksync',
+    };
+
+    // Enrich with token metadata from our database
+    const enrichedBalances = await Promise.all(
+      balancesData.tokenBalances.map(async (balance) => {
+        // Map the network to CoinGecko chain ID
+        const coinGeckoChainId =
+          chainMapping[balance.network] || balance.network;
+
+        // Find token by contract address
+        const token = await this.tokensService.findByContractAddress(
+          coinGeckoChainId,
+          balance.contractAddress,
+        );
+
+        return {
+          contractAddress: balance.contractAddress,
+          balance: balance.balance, // Already formatted by the service
+          balanceFormatted: balance.balance,
+          symbol: balance.symbol,
+          name: balance.name,
+          logo: balance.logo,
+          decimals: balance.decimals,
+          network: balance.network,
+          token: token
+            ? {
+                id: token.id as string,
+                symbol: token.symbol,
+                name: token.name,
+                image: token.image,
+              }
+            : null,
+        };
+      }),
+    );
+
+    return {
+      address,
+      chain,
+      nativeBalances: balancesData.nativeBalances,
+      balances: enrichedBalances,
+      totalTokens: enrichedBalances.length,
+      tokensWithMetadata: enrichedBalances.filter((b) => b.token !== null)
+        .length,
+    };
   }
 }

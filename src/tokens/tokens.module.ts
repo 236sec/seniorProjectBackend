@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CoingeckoModule } from 'src/coingecko/coingecko.module';
 import {
+  TokenContract,
+  TokenContractSchema,
+} from './schema/token-contract.schema';
+import {
   TokenUpdateLog,
   TokenUpdateLogSchema,
 } from './schema/token-update-log.schema';
@@ -14,6 +18,7 @@ import { TokensService } from './tokens.service';
     MongooseModule.forFeature([
       { name: Token.name, schema: TokenSchema },
       { name: TokenUpdateLog.name, schema: TokenUpdateLogSchema },
+      { name: TokenContract.name, schema: TokenContractSchema },
     ]),
     CoingeckoModule,
   ],

@@ -8,6 +8,7 @@ import {
   AllTransactionsServiceResponse,
   CHAINS,
   SupportedChain,
+  TokenBalancesResponse,
   TransactionServiceResponse,
   Transfer,
   TransferCategory,
@@ -363,6 +364,163 @@ export class AlchemysService {
         totalPages: pageCount,
         transactions: allTransactions,
       };
+    }
+  }
+
+  /**
+   * Convert raw token balance to human-readable format using decimals
+   */
+  private formatTokenBalance(rawBalance: string, decimals: number): string {
+    if (!rawBalance || rawBalance === '0') return '0';
+
+    const balance = BigInt(rawBalance);
+    const divisor = BigInt(10 ** decimals);
+    const integerPart = balance / divisor;
+    const remainder = balance % divisor;
+
+    if (remainder === BigInt(0)) {
+      return integerPart.toString();
+    }
+
+    const fractionalPart = remainder.toString().padStart(decimals, '0');
+    return `${integerPart}.${fractionalPart}`;
+  }
+
+  /**
+   * Get ERC-20 token balances for a wallet address using Alchemy Portfolio API
+   * @param chains - Array of blockchain network identifiers
+   * @param address - Wallet address
+   * @returns Token balances with metadata
+   */
+  async getTokenBalances(chains: string[], address: string) {
+    try {
+      // Validate configuration
+      if (!this.apiKey) {
+        throw new Error(
+          'Alchemy API not configured. Please set ALCHEMY_API_KEY',
+        );
+      }
+
+      // Validate chains
+      const invalidChains = chains.filter(
+        (chain) => !CHAINS.includes(chain as SupportedChain),
+      );
+      if (invalidChains.length > 0) {
+        throw new Error(
+          `Unsupported chains: ${invalidChains.join(', ')}. Supported chains: ${CHAINS.join(', ')}`,
+        );
+      }
+
+      // Validate address format
+      if (!address || address.length < 10) {
+        throw new Error(`Invalid wallet address: ${address}`);
+      }
+
+      // Use Portfolio API to get all token balances in one call
+      const url = `https://api.g.alchemy.com/data/v1/${this.apiKey}/assets/tokens/by-address`;
+
+      const requestBody = {
+        addresses: [{ address, networks: chains }],
+        withMetadata: true,
+        withPrices: true,
+        includeNativeTokens: true,
+        includeErc20Tokens: true,
+      };
+
+      const response = await firstValueFrom(
+        this.httpService.post<TokenBalancesResponse>(url, requestBody),
+      );
+
+      if (!response.data || !response.data.data || !response.data.data.tokens) {
+        return {
+          address,
+          chains,
+          nativeBalances: [],
+          tokenBalances: [],
+        };
+      }
+
+      // Group native tokens by network (has null tokenAddress)
+      const nativeBalances = response.data.data.tokens
+        .filter((token) => token.tokenAddress === null)
+        .filter((token) => {
+          // Exclude zero balances
+          if (!token.tokenBalance || token.tokenBalance === '0') return false;
+          if (token.tokenBalance.startsWith('0x')) {
+            const normalized = token.tokenBalance.replace(/^0x0+/, '') || '0';
+            if (normalized === '0') return false;
+          }
+          return true;
+        })
+        .map((token) => ({
+          network: token.network,
+          balance: this.formatTokenBalance(token.tokenBalance, 18),
+        }));
+
+      // Map ERC-20 tokens to our format (exclude native token and zero balances)
+      const tokenBalances = response.data.data.tokens
+        .filter((token) => {
+          // Exclude native token
+          if (token.tokenAddress === null) return false;
+
+          // Exclude zero balances (handles both "0" and "0x000...000" formats)
+          if (!token.tokenBalance || token.tokenBalance === '0') return false;
+          if (token.tokenBalance.startsWith('0x')) {
+            const normalized = token.tokenBalance.replace(/^0x0+/, '') || '0';
+            if (normalized === '0') return false;
+          }
+
+          return true;
+        })
+        .map((token) => {
+          // Safely extract metadata with defaults
+          const metadata = token.tokenMetadata;
+          const decimals: number =
+            metadata && typeof metadata.decimals === 'number'
+              ? metadata.decimals
+              : 18;
+          const symbol: string =
+            metadata && typeof metadata.symbol === 'string'
+              ? metadata.symbol
+              : 'UNKNOWN';
+          const name: string =
+            metadata && typeof metadata.name === 'string'
+              ? metadata.name
+              : 'Unknown Token';
+          const logo: string | null =
+            metadata && typeof metadata.logo === 'string'
+              ? metadata.logo
+              : null;
+
+          return {
+            contractAddress: token.tokenAddress as string,
+            symbol,
+            name,
+            balance: this.formatTokenBalance(token.tokenBalance, decimals),
+            decimals: decimals !== 18 ? decimals : null,
+            logo,
+            network: token.network,
+          };
+        });
+
+      this.logger.debug(
+        `Found ${nativeBalances.length} native balances and ${tokenBalances.length} non-zero ERC-20 token balances for ${address}`,
+      );
+
+      return {
+        address,
+        chains,
+        nativeBalances,
+        tokenBalances,
+      };
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(
+        `Error fetching token balances from Alchemy: ${errorMessage}`,
+      );
+      throw error;
     }
   }
 }

@@ -14,6 +14,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { UsersModule } from './users/users.module';
 import { AlchemysModule } from './alchemys/alchemys.module';
 import { WalletsModule } from './wallets/wallets.module';
+import { TokensModule } from './tokens/tokens.module';
 import { CoingeckoModule } from './coingecko/coingecko.module';
 
 @Module({
@@ -65,6 +66,7 @@ import { CoingeckoModule } from './coingecko/coingecko.module';
     UsersModule,
     AlchemysModule,
     WalletsModule,
+    TokensModule,
     CoingeckoModule,
   ],
   controllers: [AppController],

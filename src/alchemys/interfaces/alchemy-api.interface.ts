@@ -50,6 +50,48 @@ export interface AlchemyApiResponse {
   };
 }
 
+export interface TokenBalance {
+  contractAddress: string;
+  tokenBalance: string;
+}
+
+export interface AlchemyTokenMetadata {
+  decimals: number;
+  logo: string | null;
+  name: string;
+  symbol: string;
+}
+
+export interface AlchemyTokenPrice {
+  currency: string;
+  value: string;
+  lastUpdatedAt: string;
+}
+
+export interface AlchemyTokenBalance {
+  address: string;
+  network: string;
+  tokenAddress: string | null;
+  tokenBalance: string;
+  tokenMetadata: AlchemyTokenMetadata | undefined;
+  tokenPrices: AlchemyTokenPrice[] | undefined;
+  error: string | undefined;
+}
+
+export interface TokenBalancesResult {
+  address: string;
+  tokenBalances: TokenBalance[];
+}
+
+export interface AlchemyTokenBalancesData {
+  tokens: AlchemyTokenBalance[];
+  pageKey?: string;
+}
+
+export interface TokenBalancesResponse {
+  data: AlchemyTokenBalancesData;
+}
+
 export interface AlchemyTransferRequest {
   fromBlock?: string;
   toBlock?: string;

@@ -13,6 +13,13 @@ export class Wallet {
 
   @Prop({ type: String, required: true, index: true })
   description: string;
+
+  @Prop({
+    type: [{ type: Types.ObjectId, ref: 'BlockchainWallet' }],
+    required: true,
+    index: true,
+  })
+  blockchainWalletId: Types.ObjectId[];
 }
 
 export const WalletSchema = SchemaFactory.createForClass(Wallet);

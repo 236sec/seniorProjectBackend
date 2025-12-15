@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ParseObjectIdPipe } from 'src/common/pipes/parse-object-id.pipe';
+import { AddBlockchainWalletDto } from './dto/add-blockchain-wallet.dto';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
 import { WalletsService } from './wallets.service';
@@ -62,5 +63,15 @@ export class WalletsController {
   @Delete(':id')
   remove(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
     return this.walletsService.remove(id);
+  }
+
+  @Post('blockchainWallets')
+  addBlockchainWallet(@Body() dto: AddBlockchainWalletDto) {
+    const walletId = new Types.ObjectId(dto.walletId);
+    return this.walletsService.addBlockchainWalletToWallet(
+      walletId,
+      dto.address,
+      dto.chains,
+    );
   }
 }

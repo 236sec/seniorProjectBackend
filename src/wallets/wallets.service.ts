@@ -7,6 +7,10 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AlchemysService } from 'src/alchemys/alchemys.service';
+import {
+  BlockchainWallet,
+  BlockchainWalletDocument,
+} from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
 import { CoingeckoService } from 'src/coingecko/coingecko.service';
 import { CHAIN_MAPPING } from 'src/common/constants/chain-mapping.constant';
 import { TokensService } from 'src/tokens/tokens.service';
@@ -20,6 +24,8 @@ export class WalletsService {
 
   constructor(
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
+    @InjectModel(BlockchainWallet.name)
+    private blockchainWalletModel: Model<BlockchainWalletDocument>,
     private readonly usersService: UsersService,
     private readonly alchemysService: AlchemysService,
     private readonly tokensService: TokensService,
@@ -59,7 +65,7 @@ export class WalletsService {
   }
 
   findOne(id: Types.ObjectId) {
-    return this.walletModel.findById(id).exec();
+    return this.walletModel.findById(id).populate('blockchainWalletId').exec();
   }
 
   findByUserId(userId: Types.ObjectId) {
@@ -74,6 +80,47 @@ export class WalletsService {
     return this.walletModel
       .findByIdAndUpdate(id, updateWalletDto, { new: true })
       .exec();
+  }
+
+  async addBlockchainWalletToWallet(
+    walletId: Types.ObjectId,
+    address: string,
+    chains: string[],
+  ) {
+    const wallet = await this.walletModel.findById(walletId).exec();
+    if (!wallet) {
+      throw new NotFoundException('Wallet does not exist');
+    }
+
+    let blockchainWallet = await this.blockchainWalletModel
+      .findOne({ address })
+      .exec();
+
+    if (!blockchainWallet) {
+      blockchainWallet = new this.blockchainWalletModel({
+        address,
+        chains: Array.from(new Set(chains)),
+        tokens: [],
+      });
+      await blockchainWallet.save();
+    } else {
+      const mergedChains = Array.from(
+        new Set([...(blockchainWallet.chains || []), ...chains]),
+      );
+      blockchainWallet.chains = mergedChains;
+      await blockchainWallet.save();
+    }
+
+    const updatedWallet = await this.walletModel
+      .findByIdAndUpdate(
+        walletId,
+        { $addToSet: { blockchainWalletId: blockchainWallet._id } },
+        { new: true },
+      )
+      .populate('blockchainWalletId')
+      .exec();
+
+    return updatedWallet;
   }
 
   async getOnChainBalanceByAddress(address: string, chain: string[]) {

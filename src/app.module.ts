@@ -15,6 +15,7 @@ import { UsersModule } from './users/users.module';
 import { AlchemysModule } from './alchemys/alchemys.module';
 import { WalletsModule } from './wallets/wallets.module';
 import { TokensModule } from './tokens/tokens.module';
+import { BlockchainWalletsModule } from './blockchain-wallets/blockchain-wallets.module';
 import { CoingeckoModule } from './coingecko/coingecko.module';
 
 @Module({
@@ -67,6 +68,7 @@ import { CoingeckoModule } from './coingecko/coingecko.module';
     AlchemysModule,
     WalletsModule,
     TokensModule,
+    BlockchainWalletsModule,
     CoingeckoModule,
   ],
   controllers: [AppController],

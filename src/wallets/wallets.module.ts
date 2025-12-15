@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AlchemysModule } from 'src/alchemys/alchemys.module';
+import {
+  BlockchainWallet,
+  BlockchainWalletSchema,
+} from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
 import { CoingeckoModule } from 'src/coingecko/coingecko.module';
 import { TokensModule } from 'src/tokens/tokens.module';
 import { UsersModule } from '../users/users.module';
@@ -10,7 +14,10 @@ import { WalletsService } from './wallets.service';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Wallet.name, schema: WalletSchema }]),
+    MongooseModule.forFeature([
+      { name: Wallet.name, schema: WalletSchema },
+      { name: BlockchainWallet.name, schema: BlockchainWalletSchema },
+    ]),
     UsersModule,
     AlchemysModule,
     TokensModule,

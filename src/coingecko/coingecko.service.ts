@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import {
+  AssetPlatformsListResponse,
   CoinDetailData,
   CoingeckoListCoinsResponse,
   CoingeckoListCoinsWithPlatformsResponse,
@@ -128,6 +129,29 @@ export class CoingeckoService {
 
       this.logger.error(
         `Error fetching coin ${coinId} from CoinGecko: ${errorMessage}`,
+      );
+      throw error;
+    }
+  }
+
+  async getAssetPlatformsList(): Promise<AssetPlatformsListResponse> {
+    const apiUrl = this.configService.get<string>('COINGECKO_API_URL');
+    const url = `${apiUrl}/asset_platforms`;
+
+    const params = {};
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(url, { params }),
+      );
+
+      return response.data as AssetPlatformsListResponse;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(
+        `Error fetching asset platforms list from CoinGecko: ${errorMessage}`,
       );
       throw error;
     }

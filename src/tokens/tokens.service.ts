@@ -778,6 +778,125 @@ export class TokensService {
       .exec();
   }
 
+  /**
+   * Add native token contract addresses for blockchain platforms
+   * Fetches asset platforms from CoinGecko and creates TokenContract records for native coins
+   * For native tokens, uses a special address format since they don't have actual contract addresses
+   */
+  async addAddressToNativeToken() {
+    try {
+      this.logger.log('Starting native token address addition...');
+
+      // Fetch asset platforms list from CoinGecko
+      const platforms = await this.coingeckoService.getAssetPlatformsList();
+
+      this.logger.log(`Fetched ${platforms.length} asset platforms`);
+
+      let added = 0;
+      const updated = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      for (const platform of platforms) {
+        try {
+          // Skip platforms without native coin ID
+          if (!platform.native_coin_id) {
+            this.logger.debug(
+              `Platform ${platform.id} has no native coin ID, skipping`,
+            );
+            skipped++;
+            continue;
+          }
+
+          // Find the token in our database by CoinGecko ID
+          const token = await this.tokenModel
+            .findOne({ id: platform.native_coin_id })
+            .exec();
+
+          if (!token) {
+            this.logger.warn(
+              `Native coin ${platform.native_coin_id} not found in database for platform ${platform.id}`,
+            );
+            errors++;
+            continue;
+          }
+
+          // For native tokens, use a special contract address format
+          // Common convention is to use '0x0000000000000000000000000000000000000000' (zero address)
+          // or '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' (Ethereum native token convention)
+          const nativeContractAddress =
+            '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+
+          // Check if contract already exists
+          const existingContract = await this.tokenContractModel
+            .findOne({
+              chainId: platform.id,
+              contractAddress: nativeContractAddress,
+            })
+            .exec();
+
+          if (existingContract) {
+            this.logger.debug(
+              `Native token contract already exists for ${platform.id}, skipping`,
+            );
+            skipped++;
+            continue;
+          }
+
+          // Create the native token contract record
+          await this.tokenContractModel.create({
+            tokenId: token._id,
+            coinGeckoId: platform.native_coin_id,
+            chainId: platform.id,
+            contractAddress: nativeContractAddress,
+            symbol: token.symbol,
+            name: token.name,
+          });
+
+          this.logger.log(
+            `Added native token contract for ${platform.name} (${platform.id}): ${platform.native_coin_id}`,
+          );
+          added++;
+
+          // Add delay to respect rate limits
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        } catch (error: unknown) {
+          errors++;
+          this.logger.error(
+            `Error processing platform ${platform.id}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+
+      const summary = {
+        success: true,
+        message: 'Native token address addition completed',
+        totalPlatforms: platforms.length,
+        added,
+        updated,
+        skipped,
+        errors,
+      };
+
+      this.logger.log(
+        `Native token address addition summary: ${JSON.stringify(summary)}`,
+      );
+
+      return summary;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(`Error adding native token addresses: ${errorMessage}`);
+
+      return {
+        success: false,
+        error: errorMessage,
+        message: 'Failed to add native token addresses',
+      };
+    }
+  }
+
   remove(id: string) {
     return this.tokenModel.findOneAndDelete({ id }).exec();
   }

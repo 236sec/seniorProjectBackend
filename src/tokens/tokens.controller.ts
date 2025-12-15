@@ -49,6 +49,11 @@ export class TokensController {
     );
   }
 
+  @Get('update-native-coins')
+  async updateNativeCoins() {
+    return this.tokensService.addAddressToNativeToken();
+  }
+
   @Get()
   findAll(@Query() query: QueryTokensDto) {
     return this.tokensService.findAll(query.page, query.limit, query.search);

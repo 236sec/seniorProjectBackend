@@ -35,3 +35,18 @@ export interface CoinDetailData {
     large: string;
   };
 }
+
+export type AssetPlatformsListResponse = AssetPlatformsListData[];
+
+export interface AssetPlatformsListData {
+  id: string;
+  chain_identifier: number | null;
+  name: string;
+  short_name: string;
+  native_coin_id: string;
+  image: {
+    thumb: string;
+    small: string;
+    large: string;
+  };
+}

@@ -17,6 +17,7 @@ import { WalletsModule } from './wallets/wallets.module';
 import { TokensModule } from './tokens/tokens.module';
 import { BlockchainWalletsModule } from './blockchain-wallets/blockchain-wallets.module';
 import { CoingeckoModule } from './coingecko/coingecko.module';
+import { TransactionsModule } from './transactions/transactions.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { CoingeckoModule } from './coingecko/coingecko.module';
     TokensModule,
     BlockchainWalletsModule,
     CoingeckoModule,
+    TransactionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

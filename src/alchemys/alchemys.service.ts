@@ -370,7 +370,7 @@ export class AlchemysService {
   /**
    * Convert raw token balance to human-readable format using decimals
    */
-  private formatTokenBalance(rawBalance: string, decimals: number): string {
+  formatTokenBalance(rawBalance: string, decimals: number): string {
     if (!rawBalance || rawBalance === '0') return '0';
 
     const balance = BigInt(rawBalance);
@@ -455,6 +455,7 @@ export class AlchemysService {
         .map((token) => ({
           network: token.network,
           balance: this.formatTokenBalance(token.tokenBalance, 18),
+          rawBalance: token.tokenBalance,
         }));
 
       // Map ERC-20 tokens to our format (exclude native token and zero balances)
@@ -497,6 +498,7 @@ export class AlchemysService {
             symbol,
             name,
             balance: this.formatTokenBalance(token.tokenBalance, decimals),
+            rawBalance: token.tokenBalance,
             decimals: decimals !== 18 ? decimals : null,
             logo,
             network: token.network,

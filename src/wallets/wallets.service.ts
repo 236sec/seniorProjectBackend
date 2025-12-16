@@ -202,7 +202,7 @@ export class WalletsService {
 
         return {
           contractAddress: balance.contractAddress,
-          balance: balance.balance, // Already formatted by the service
+          balance: balance.rawBalance, // Already formatted by the service
           balanceFormatted: balance.balance,
           symbol: balance.symbol,
           name: balance.name,
@@ -289,7 +289,7 @@ export class WalletsService {
 
         return {
           contractAddress: NATIVE_CONTRACT_ADDRESS,
-          balance: native.balance,
+          balance: native.rawBalance,
           balanceFormatted: native.balance,
           symbol: token?.symbol ?? null,
           name: token?.name ?? null,

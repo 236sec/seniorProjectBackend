@@ -65,7 +65,18 @@ export class WalletsService {
   }
 
   findOne(id: Types.ObjectId) {
-    return this.walletModel.findById(id).populate('blockchainWalletId').exec();
+    return this.walletModel
+      .findById(id)
+      .populate({
+        path: 'blockchainWalletId',
+        populate: {
+          path: 'tokens.tokenContractId',
+          populate: {
+            path: 'tokenId',
+          },
+        },
+      })
+      .exec();
   }
 
   findByUserId(userId: Types.ObjectId) {

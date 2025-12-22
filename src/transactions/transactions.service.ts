@@ -194,10 +194,16 @@ export class TransactionsService {
         const newBalance = subHexBalances(currentStr, deltaStr, 18);
 
         if (isZeroOrNegative(newBalance)) {
-          blockchainWallet.tokens.splice(existingIndex, 1);
+          if (newBalance === '0x0') {
+            blockchainWallet.tokens.splice(existingIndex, 1);
+          } else {
+            throw new Error('Insufficient balance for withdrawal');
+          }
         } else {
           blockchainWallet.tokens[existingIndex].balance = newBalance;
         }
+      } else {
+        throw new Error('Token not found in wallet for withdrawal');
       }
     }
   }
@@ -236,10 +242,16 @@ export class TransactionsService {
         const newBalance = subHexBalances(currentStr, deltaStr, 18);
 
         if (isZeroOrNegative(newBalance)) {
-          wallet.manualTokens.splice(existingIndex, 1);
+          if (newBalance === '0x0') {
+            wallet.manualTokens.splice(existingIndex, 1);
+          } else {
+            throw new Error('Insufficient balance for withdrawal');
+          }
         } else {
           wallet.manualTokens[existingIndex].balance = newBalance;
         }
+      } else {
+        throw new Error('Token not found in wallet for withdrawal');
       }
     }
   }

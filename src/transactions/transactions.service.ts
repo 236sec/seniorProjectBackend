@@ -5,7 +5,6 @@ import { AlchemysService } from 'src/alchemys/alchemys.service';
 import {
   BlockchainWallet,
   BlockchainWalletDocument,
-  TokenBalance,
 } from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
 import {
   addHexBalances,
@@ -31,32 +30,23 @@ import {
 export class TransactionsService {
   constructor(
     @InjectModel(Transaction.name)
-    private transactionModel: Model<TransactionDocument>,
+    private readonly transactionModel: Model<TransactionDocument>,
     @InjectModel(TokenContract.name)
-    private tokenContractModel: Model<TokenContractDocument>,
+    private readonly tokenContractModel: Model<TokenContractDocument>,
     @InjectModel(BlockchainWallet.name)
-    private blockchainWalletModel: Model<BlockchainWalletDocument>,
+    private readonly blockchainWalletModel: Model<BlockchainWalletDocument>,
     @InjectModel(Wallet.name)
-    private walletModel: Model<WalletDocument>,
+    private readonly walletModel: Model<WalletDocument>,
     private readonly alchemysService: AlchemysService,
   ) {}
   async create(createTransactionDto: CreateTransactionDto) {
-    // check wallet exists
-    const wallet = await this.walletModel
-      .findById(createTransactionDto.walletId)
-      .exec();
-    if (!wallet) {
-      throw new Error('Wallet not found');
-    }
-    // check token contract exists
-    const tokenContractId = new Types.ObjectId(
+    // validate transaction
+    const { wallet, tokenContract } = await this.validateTransaction(
+      createTransactionDto.walletId,
       createTransactionDto.tokenContractId,
     );
-    const tokenContract = await this.tokenContractModel
-      .findById(tokenContractId)
-      .exec();
-    if (!tokenContract) {
-      throw new Error('Token contract not found');
+    if (!wallet || !tokenContract) {
+      throw new Error('Validation failed for transaction');
     }
     if (createTransactionDto.type === TransactionType.SYNCED) {
       const blockchainWalletId = new Types.ObjectId(
@@ -70,40 +60,12 @@ export class TransactionsService {
       }
 
       // update token balance in blockchain wallet
-      const tokenId = tokenContract._id as unknown as Types.ObjectId;
-      const existingIndex = blockchainWallet.tokens.findIndex((t) =>
-        t.tokenContractId.equals(tokenId),
+      this.updateWalletBalance(
+        blockchainWallet,
+        tokenContract._id,
+        createTransactionDto.quantity,
+        createTransactionDto.event_type,
       );
-      if (existingIndex >= 0) {
-        const currentStr =
-          (blockchainWallet.tokens[existingIndex]
-            .balance as unknown as string) || '0x0';
-        const deltaStr =
-          (createTransactionDto.quantity as unknown as string) || '0x0';
-        if (createTransactionDto.event_type === TransactionEventType.DEPOSIT) {
-          blockchainWallet.tokens[existingIndex].balance = addHexBalances(
-            currentStr,
-            deltaStr,
-            18,
-          );
-        } else if (
-          createTransactionDto.event_type === TransactionEventType.WITHDRAWAL
-        ) {
-          const newBalance = subHexBalances(currentStr, deltaStr, 18);
-          // Check if balance is zero or negative, remove token from array
-          if (isZeroOrNegative(newBalance)) {
-            blockchainWallet.tokens.splice(existingIndex, 1);
-          } else {
-            blockchainWallet.tokens[existingIndex].balance = newBalance;
-          }
-        }
-      } else {
-        const tb: TokenBalance = {
-          tokenContractId: tokenId,
-          balance: createTransactionDto.quantity,
-        };
-        blockchainWallet.tokens.push(tb);
-      }
       await blockchainWallet.save();
     }
 
@@ -113,6 +75,14 @@ export class TransactionsService {
 
     const createdTransaction = new this.transactionModel(createTransactionDto);
     return createdTransaction.save();
+  }
+
+  async validateTransaction(walletId: string, tokenContractId: string) {
+    const [wallet, tokenContract] = await Promise.all([
+      this.walletModel.findById(walletId).exec(),
+      this.tokenContractModel.findById(tokenContractId).exec(),
+    ]);
+    return { wallet, tokenContract };
   }
 
   async createBatch(batchDto: CreateTransactionBatchDto) {
@@ -141,48 +111,12 @@ export class TransactionsService {
       } as CreateTransactionDto;
 
       if (dto.type === TransactionType.SYNCED) {
-        const tokenId = tokenContract._id as unknown as Types.ObjectId;
-        const existingIndex = blockchainWallet.tokens.findIndex((t) =>
-          t.tokenContractId.equals(tokenId),
+        this.updateWalletBalance(
+          blockchainWallet,
+          tokenContract._id,
+          dto.quantity,
+          dto.event_type,
         );
-
-        if (dto.event_type === TransactionEventType.DEPOSIT) {
-          // DEPOSIT: Add to balance
-          if (existingIndex >= 0) {
-            const currentStr =
-              (blockchainWallet.tokens[existingIndex]
-                .balance as unknown as string) || '0x0';
-            const deltaStr = (dto.quantity as unknown as string) || '0x0';
-            blockchainWallet.tokens[existingIndex].balance = addHexBalances(
-              currentStr,
-              deltaStr,
-              18,
-            );
-          } else {
-            const tb: TokenBalance = {
-              tokenContractId: tokenId,
-              balance: dto.quantity,
-            };
-            blockchainWallet.tokens.push(tb);
-          }
-        } else if (dto.event_type === TransactionEventType.WITHDRAWAL) {
-          // WITHDRAWAL: Subtract from balance
-          if (existingIndex >= 0) {
-            const currentStr =
-              (blockchainWallet.tokens[existingIndex]
-                .balance as unknown as string) || '0x0';
-            const deltaStr = (dto.quantity as unknown as string) || '0x0';
-            const newBalance = subHexBalances(currentStr, deltaStr, 18);
-
-            // Check if balance is zero or negative, remove token from array
-            if (isZeroOrNegative(newBalance)) {
-              blockchainWallet.tokens.splice(existingIndex, 1);
-            } else {
-              blockchainWallet.tokens[existingIndex].balance = newBalance;
-            }
-          }
-          // If token doesn't exist and it's a withdrawal, ignore
-        }
         await blockchainWallet.save();
       }
 
@@ -209,6 +143,47 @@ export class TransactionsService {
     return `This action updates a #${id} transaction`;
   }
 
+  private updateWalletBalance(
+    blockchainWallet: BlockchainWalletDocument,
+    tokenContractId: Types.ObjectId,
+    quantity: string,
+    eventType: TransactionEventType,
+  ) {
+    const existingIndex = blockchainWallet.tokens.findIndex((t) =>
+      t.tokenContractId.equals(tokenContractId),
+    );
+    const deltaStr = quantity || '0x0';
+
+    if (eventType === TransactionEventType.DEPOSIT) {
+      if (existingIndex >= 0) {
+        const currentStr =
+          blockchainWallet.tokens[existingIndex].balance || '0x0';
+        blockchainWallet.tokens[existingIndex].balance = addHexBalances(
+          currentStr,
+          deltaStr,
+          18,
+        );
+      } else {
+        blockchainWallet.tokens.push({
+          tokenContractId,
+          balance: deltaStr,
+        });
+      }
+    } else if (eventType === TransactionEventType.WITHDRAWAL) {
+      if (existingIndex >= 0) {
+        const currentStr =
+          blockchainWallet.tokens[existingIndex].balance || '0x0';
+        const newBalance = subHexBalances(currentStr, deltaStr, 18);
+
+        if (isZeroOrNegative(newBalance)) {
+          blockchainWallet.tokens.splice(existingIndex, 1);
+        } else {
+          blockchainWallet.tokens[existingIndex].balance = newBalance;
+        }
+      }
+    }
+  }
+
   async remove(id: Types.ObjectId) {
     const tx = await this.transactionModel.findById(id).exec();
 
@@ -231,9 +206,8 @@ export class TransactionsService {
       );
 
       if (idx >= 0) {
-        const currentStr =
-          (blockchainWallet.tokens[idx].balance as unknown as string) || '0x0';
-        const deltaStr = (tx.quantity as unknown as string) || '0x0';
+        const currentStr = blockchainWallet.tokens[idx].balance || '0x0';
+        const deltaStr = tx.quantity || '0x0';
         blockchainWallet.tokens[idx].balance = subHexBalances(
           currentStr,
           deltaStr,

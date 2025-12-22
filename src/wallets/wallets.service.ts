@@ -23,9 +23,10 @@ export class WalletsService {
   private readonly logger = new Logger(WalletsService.name);
 
   constructor(
-    @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
+    @InjectModel(Wallet.name)
+    private readonly walletModel: Model<WalletDocument>,
     @InjectModel(BlockchainWallet.name)
-    private blockchainWalletModel: Model<BlockchainWalletDocument>,
+    private readonly blockchainWalletModel: Model<BlockchainWalletDocument>,
     private readonly usersService: UsersService,
     private readonly alchemysService: AlchemysService,
     private readonly tokensService: TokensService,
@@ -74,6 +75,12 @@ export class WalletsService {
           populate: {
             path: 'tokenId',
           },
+        },
+      })
+      .populate({
+        path: 'manualTokens.tokenContractId',
+        populate: {
+          path: 'tokenId',
         },
       })
       .exec();
@@ -160,10 +167,7 @@ export class WalletsService {
         // If token exists but has no image, fetch it from CoinGecko and update database
         if (
           token &&
-          (!token.image ||
-            !token.image.thumb ||
-            !token.image.small ||
-            !token.image.large)
+          (!token.image?.thumb || !token.image?.small || !token.image?.large)
         ) {
           try {
             this.logger.debug(
@@ -249,10 +253,7 @@ export class WalletsService {
         // If token exists but has no image, fetch it from CoinGecko and update database
         if (
           token &&
-          (!token.image ||
-            !token.image.thumb ||
-            !token.image.small ||
-            !token.image.large)
+          (!token.image?.thumb || !token.image?.small || !token.image?.large)
         ) {
           try {
             this.logger.debug(

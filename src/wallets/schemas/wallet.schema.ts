@@ -1,5 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import {
+  TokenBalance,
+  TokenBalanceSchema,
+} from '../../blockchain-wallets/schema/blockchain-wallet.schema';
 
 export type WalletDocument = Wallet & Document;
 
@@ -20,6 +24,9 @@ export class Wallet {
     index: true,
   })
   blockchainWalletId: Types.ObjectId[];
+
+  @Prop({ type: [TokenBalanceSchema], default: [] })
+  manualTokens: TokenBalance[];
 }
 
 export const WalletSchema = SchemaFactory.createForClass(Wallet);

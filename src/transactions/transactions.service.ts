@@ -52,6 +52,15 @@ export class TransactionsService {
       const blockchainWalletId = new Types.ObjectId(
         createTransactionDto.blockchainWalletId,
       );
+
+      if (
+        !wallet.blockchainWalletId.some((id) => id.equals(blockchainWalletId))
+      ) {
+        throw new Error(
+          'Blockchain wallet does not belong to the specified wallet',
+        );
+      }
+
       const blockchainWallet = await this.blockchainWalletModel
         .findById(blockchainWalletId)
         .exec();
@@ -70,7 +79,13 @@ export class TransactionsService {
     }
 
     if (createTransactionDto.type === TransactionType.MANUAL) {
-      // For MANUAL transactions, we might have different logic in future
+      this.updateManualWalletBalance(
+        wallet,
+        tokenContract._id,
+        createTransactionDto.quantity,
+        createTransactionDto.event_type,
+      );
+      await wallet.save();
     }
 
     const createdTransaction = new this.transactionModel(createTransactionDto);
@@ -98,6 +113,14 @@ export class TransactionsService {
       if (!blockchainWallet) throw new Error('Blockchain wallet not found');
       const blockchainWalletId = blockchainWallet._id.toString();
 
+      if (
+        !wallet.blockchainWalletId.some((id) => id.equals(blockchainWallet._id))
+      ) {
+        throw new Error(
+          `Blockchain wallet ${blockchainWalletId} does not belong to the specified wallet`,
+        );
+      }
+
       // check token contract exists
       const tokenContract = await this.tokenContractModel
         .findById(item.tokenContractId)
@@ -119,11 +142,6 @@ export class TransactionsService {
         );
         await blockchainWallet.save();
       }
-
-      if (dto.type === TransactionType.MANUAL) {
-        // For MANUAL transactions, we might have different logic in future
-      }
-
       const created = new this.transactionModel(dto);
       results.push(await created.save());
     }
@@ -184,6 +202,48 @@ export class TransactionsService {
     }
   }
 
+  private updateManualWalletBalance(
+    wallet: WalletDocument,
+    tokenContractId: Types.ObjectId,
+    quantity: string,
+    eventType: TransactionEventType,
+  ) {
+    if (!wallet.manualTokens) {
+      wallet.manualTokens = [];
+    }
+    const existingIndex = wallet.manualTokens.findIndex((t) =>
+      t.tokenContractId.equals(tokenContractId),
+    );
+    const deltaStr = quantity || '0x0';
+
+    if (eventType === TransactionEventType.DEPOSIT) {
+      if (existingIndex >= 0) {
+        const currentStr = wallet.manualTokens[existingIndex].balance || '0x0';
+        wallet.manualTokens[existingIndex].balance = addHexBalances(
+          currentStr,
+          deltaStr,
+          18,
+        );
+      } else {
+        wallet.manualTokens.push({
+          tokenContractId,
+          balance: deltaStr,
+        });
+      }
+    } else if (eventType === TransactionEventType.WITHDRAWAL) {
+      if (existingIndex >= 0) {
+        const currentStr = wallet.manualTokens[existingIndex].balance || '0x0';
+        const newBalance = subHexBalances(currentStr, deltaStr, 18);
+
+        if (isZeroOrNegative(newBalance)) {
+          wallet.manualTokens.splice(existingIndex, 1);
+        } else {
+          wallet.manualTokens[existingIndex].balance = newBalance;
+        }
+      }
+    }
+  }
+
   async remove(id: Types.ObjectId) {
     const tx = await this.transactionModel.findById(id).exec();
 
@@ -218,7 +278,22 @@ export class TransactionsService {
     }
 
     if (tx.type === TransactionType.MANUAL) {
-      // TODO: Implement manual transaction reversal logic in future
+      const wallet = await this.walletModel.findById(tx.walletId).exec();
+      if (wallet) {
+        // Reversal logic: DEPOSIT -> WITHDRAWAL, WITHDRAWAL -> DEPOSIT
+        const reversalEventType =
+          tx.event_type === TransactionEventType.DEPOSIT
+            ? TransactionEventType.WITHDRAWAL
+            : TransactionEventType.DEPOSIT;
+
+        this.updateManualWalletBalance(
+          wallet,
+          new Types.ObjectId(tx.tokenContractId),
+          tx.quantity,
+          reversalEventType,
+        );
+        await wallet.save();
+      }
     }
 
     await this.transactionModel.deleteOne({ _id: tx._id }).exec();

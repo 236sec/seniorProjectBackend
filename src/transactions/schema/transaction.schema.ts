@@ -37,6 +37,9 @@ export class Transaction {
   @Prop({ type: Types.ObjectId, ref: 'TokenContract' })
   tokenContractId: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'Token' })
+  tokenId: Types.ObjectId;
+
   // Quantity in string to avoid floating point issues
   @Prop({ type: String })
   quantity: string;
@@ -46,6 +49,9 @@ export class Transaction {
 
   @Prop({ type: Number })
   cashflow_usd: number;
+
+  @Prop({ type: Date })
+  timestamp: Date;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);

@@ -25,8 +25,8 @@ Returns a JSON object representing the wallet with the following populated field
     - `tokenContractId`: The token contract details.
       - `tokenId`: The full token details (symbol, name, image, etc.).
 - `manualTokens`: Array of manually added token balances.
-  - `tokenContractId`: The token contract details.
-    - `tokenId`: The full token details.
+  - `tokenId`: The full token details.
+  - `balance`: The balance of the token
 
 ### Example Response
 
@@ -82,33 +82,22 @@ Returns a JSON object representing the wallet with the following populated field
   ],
   "manualTokens": [
     {
-      "tokenContractId": {
-        "_id": "693f9673cd011622ce9b97a9",
-        "tokenId": {
-          "_id": "69354fab9ad82c7d4c50f628",
-          "id": "weth",
-          "__v": 0,
-          "createdAt": "2025-12-07T09:58:02.519Z",
-          "name": "WETH",
-          "symbol": "weth",
-          "updatedAt": "2025-12-15T05:02:49.939Z",
-          "image": {
-            "thumb": "https://coin-images.coingecko.com/coins/images/2518/large/weth.png?1696503332",
-            "small": "https://coin-images.coingecko.com/coins/images/2518/large/weth.png?1696503332",
-            "large": "https://coin-images.coingecko.com/coins/images/2518/large/weth.png?1696503332",
-            "_id": "693f9679cd011622ce9b98a2"
-          }
-        },
-        "coinGeckoId": "weth",
-        "chainId": "zircuit",
-        "contractAddress": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-        "symbol": "weth",
-        "name": "WETH",
-        "createdAt": "2025-12-15T05:02:43.934Z",
-        "updatedAt": "2025-12-15T05:02:43.934Z",
-        "__v": 0
+      "tokenId": {
+        "_id": "69354fab9ad82c7d4c50c750",
+        "id": "ethereum",
+        "__v": 0,
+        "createdAt": "2025-12-07T09:58:02.516Z",
+        "name": "Ethereum",
+        "symbol": "eth",
+        "updatedAt": "2025-12-15T05:02:49.939Z",
+        "image": {
+          "thumb": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
+          "small": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
+          "large": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
+          "_id": "693f9679cd011622ce9b988d"
+        }
       },
-      "balance": "0x000000000000000000000000000000000000000000000000018c546d9fc1aa2a"
+      "balance": "0x00000000000000000000000000000000000000000000000000c62a36cfe0d515"
     }
   ]
 }

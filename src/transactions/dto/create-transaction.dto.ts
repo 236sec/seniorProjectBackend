@@ -1,4 +1,6 @@
+import { Type } from 'class-transformer';
 import {
+  IsDate,
   IsEnum,
   IsMongoId,
   IsNotEmpty,
@@ -39,6 +41,10 @@ export class TransctionInfo {
   tokenContractId: string;
 
   @IsOptional()
+  @IsMongoId()
+  tokenId: string;
+
+  @IsOptional()
   @IsString()
   quantity: string;
 
@@ -49,6 +55,11 @@ export class TransctionInfo {
   @IsOptional()
   @IsNumber()
   cashflow_usd: number;
+
+  @IsNotEmpty()
+  @IsDate()
+  @Type(() => Date)
+  timestamp: Date;
 }
 
 export class CreateTransactionDto extends TransctionInfo {

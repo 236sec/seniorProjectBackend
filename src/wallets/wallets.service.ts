@@ -77,12 +77,7 @@ export class WalletsService {
           },
         },
       })
-      .populate({
-        path: 'manualTokens.tokenContractId',
-        populate: {
-          path: 'tokenId',
-        },
-      })
+      .populate('manualTokens.tokenId')
       .exec();
   }
 

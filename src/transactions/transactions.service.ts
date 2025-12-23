@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AlchemysService } from 'src/alchemys/alchemys.service';
@@ -15,6 +19,7 @@ import {
   TokenContract,
   TokenContractDocument,
 } from 'src/tokens/schema/token-contract.schema';
+import { Token, TokenDocument } from 'src/tokens/schema/token.schema';
 import { Wallet, WalletDocument } from 'src/wallets/schemas/wallet.schema';
 import { CreateTransactionBatchDto } from './dto/create-transaction-batch.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -37,18 +42,24 @@ export class TransactionsService {
     private readonly blockchainWalletModel: Model<BlockchainWalletDocument>,
     @InjectModel(Wallet.name)
     private readonly walletModel: Model<WalletDocument>,
+    @InjectModel(Token.name)
+    private readonly tokenModel: Model<TokenDocument>,
     private readonly alchemysService: AlchemysService,
   ) {}
   async create(createTransactionDto: CreateTransactionDto) {
     // validate transaction
-    const { wallet, tokenContract } = await this.validateTransaction(
+    const { wallet, tokenContract, token } = await this.validateTransaction(
       createTransactionDto.walletId,
       createTransactionDto.tokenContractId,
+      createTransactionDto.tokenId,
     );
-    if (!wallet || !tokenContract) {
-      throw new Error('Validation failed for transaction');
+    if (!wallet) {
+      throw new BadRequestException('Wallet not found');
     }
     if (createTransactionDto.type === TransactionType.SYNCED) {
+      if (createTransactionDto.tokenContractId && !tokenContract) {
+        throw new BadRequestException('Token contract not found');
+      }
       const blockchainWalletId = new Types.ObjectId(
         createTransactionDto.blockchainWalletId,
       );
@@ -71,7 +82,7 @@ export class TransactionsService {
       // update token balance in blockchain wallet
       this.updateWalletBalance(
         blockchainWallet,
-        tokenContract._id,
+        tokenContract!._id,
         createTransactionDto.quantity,
         createTransactionDto.event_type,
       );
@@ -79,9 +90,12 @@ export class TransactionsService {
     }
 
     if (createTransactionDto.type === TransactionType.MANUAL) {
+      if (createTransactionDto.tokenId && !token) {
+        throw new BadRequestException('Token not found');
+      }
       this.updateManualWalletBalance(
         wallet,
-        tokenContract._id,
+        token!._id,
         createTransactionDto.quantity,
         createTransactionDto.event_type,
       );
@@ -92,12 +106,25 @@ export class TransactionsService {
     return createdTransaction.save();
   }
 
-  async validateTransaction(walletId: string, tokenContractId: string) {
-    const [wallet, tokenContract] = await Promise.all([
-      this.walletModel.findById(walletId).exec(),
-      this.tokenContractModel.findById(tokenContractId).exec(),
+  async validateTransaction(
+    walletId: string,
+    tokenContractId: string | undefined,
+    tokenId: string | undefined,
+  ) {
+    const walletPromise = this.walletModel.findById(walletId).exec();
+    const tokenContractPromise = tokenContractId
+      ? this.tokenContractModel.findById(tokenContractId).exec()
+      : Promise.resolve(null);
+    const tokenIdPromise = tokenId
+      ? this.tokenModel.findById(new Types.ObjectId(tokenId)).exec()
+      : Promise.resolve(null);
+
+    const [wallet, tokenContract, token] = await Promise.all([
+      walletPromise,
+      tokenContractPromise,
+      tokenIdPromise,
     ]);
-    return { wallet, tokenContract };
+    return { wallet, tokenContract, token };
   }
 
   async createBatch(batchDto: CreateTransactionBatchDto) {
@@ -105,35 +132,38 @@ export class TransactionsService {
     const wallet = await this.walletModel.findById(walletId).exec();
     if (!wallet) throw new Error('Wallet not found');
     const results: TransactionDocument[] = [];
+    let isWalletModified = false;
+
     for (const item of items) {
-      // check blockchain wallet exists
-      const blockchainWallet = await this.blockchainWalletModel
-        .findById(item.blockchainWalletId)
-        .exec();
-      if (!blockchainWallet) throw new Error('Blockchain wallet not found');
-      const blockchainWalletId = blockchainWallet._id.toString();
-
-      if (
-        !wallet.blockchainWalletId.some((id) => id.equals(blockchainWallet._id))
-      ) {
-        throw new Error(
-          `Blockchain wallet ${blockchainWalletId} does not belong to the specified wallet`,
-        );
-      }
-
-      // check token contract exists
-      const tokenContract = await this.tokenContractModel
-        .findById(item.tokenContractId)
-        .exec();
-      if (!tokenContract) throw new Error('Token contract not found');
-
       const dto: CreateTransactionDto = {
         ...item,
-        blockchainWalletId,
         walletId,
       } as CreateTransactionDto;
 
       if (dto.type === TransactionType.SYNCED) {
+        // check blockchain wallet exists
+        const blockchainWallet = await this.blockchainWalletModel
+          .findById(item.blockchainWalletId)
+          .exec();
+        if (!blockchainWallet) throw new Error('Blockchain wallet not found');
+        const blockchainWalletId = blockchainWallet._id.toString();
+
+        if (
+          !wallet.blockchainWalletId.some((id) =>
+            id.equals(blockchainWallet._id),
+          )
+        ) {
+          throw new Error(
+            `Blockchain wallet ${blockchainWalletId} does not belong to the specified wallet`,
+          );
+        }
+
+        // check token contract exists
+        const tokenContract = await this.tokenContractModel
+          .findById(item.tokenContractId)
+          .exec();
+        if (!tokenContract) throw new Error('Token contract not found');
+
         this.updateWalletBalance(
           blockchainWallet,
           tokenContract._id,
@@ -141,10 +171,28 @@ export class TransactionsService {
           dto.event_type,
         );
         await blockchainWallet.save();
+      } else if (dto.type === TransactionType.MANUAL) {
+        // check token exists
+        const token = await this.tokenModel.findById(item.tokenId).exec();
+        if (!token) throw new Error('Token not found');
+
+        this.updateManualWalletBalance(
+          wallet,
+          token._id,
+          dto.quantity,
+          dto.event_type,
+        );
+        isWalletModified = true;
       }
+
       const created = new this.transactionModel(dto);
       results.push(await created.save());
     }
+
+    if (isWalletModified) {
+      await wallet.save();
+    }
+
     return results;
   }
 
@@ -210,7 +258,7 @@ export class TransactionsService {
 
   private updateManualWalletBalance(
     wallet: WalletDocument,
-    tokenContractId: Types.ObjectId,
+    tokenId: Types.ObjectId,
     quantity: string,
     eventType: TransactionEventType,
   ) {
@@ -218,7 +266,7 @@ export class TransactionsService {
       wallet.manualTokens = [];
     }
     const existingIndex = wallet.manualTokens.findIndex((t) =>
-      t.tokenContractId.equals(tokenContractId),
+      t.tokenId.equals(tokenId),
     );
     const deltaStr = quantity || '0x0';
 
@@ -232,7 +280,7 @@ export class TransactionsService {
         );
       } else {
         wallet.manualTokens.push({
-          tokenContractId,
+          tokenId,
           balance: deltaStr,
         });
       }
@@ -260,7 +308,7 @@ export class TransactionsService {
     const tx = await this.transactionModel.findById(id).exec();
 
     if (!tx) {
-      throw new Error('Transaction not found');
+      throw new NotFoundException('Transaction not found');
     }
 
     if (tx.type === TransactionType.SYNCED) {
@@ -300,7 +348,7 @@ export class TransactionsService {
 
         this.updateManualWalletBalance(
           wallet,
-          new Types.ObjectId(tx.tokenContractId),
+          new Types.ObjectId(tx.tokenId),
           tx.quantity,
           reversalEventType,
         );

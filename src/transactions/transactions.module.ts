@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AlchemysModule } from 'src/alchemys/alchemys.module';
 import {
   BlockchainWallet,
   BlockchainWalletSchema,
@@ -24,7 +23,6 @@ import { TransactionsService } from './transactions.service';
       { name: Wallet.name, schema: WalletSchema },
       { name: Token.name, schema: TokenSchema },
     ]),
-    AlchemysModule,
   ],
   controllers: [TransactionsController],
   providers: [TransactionsService],

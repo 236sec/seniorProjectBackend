@@ -20,7 +20,7 @@ The request body should be a JSON object with the following fields:
 | `tokenContractId`    | ObjectId | Optional | The ID of the token contract involved in the transaction (required if `type` is `SYNCED`).                 |
 | `tokenId`            | ObjectId | Optional | The ID of the token involved in the transaction (required if `type` is `MANUAL`).                          |
 | `event_type`         | Enum     | Optional | The type of event. Values: `SWAP`, `DEPOSIT`, `WITHDRAWAL`.                                                |
-| `quantity`           | String   | Optional | The amount of tokens involved (in raw hex or string format).                                               |
+| `quantity`           | String   | Optional | The amount of tokens involved (must be a hex string, e.g., "0x1a").                                        |
 | `from`               | String   | Optional | The sender address.                                                                                        |
 | `to`                 | String   | Optional | The recipient address.                                                                                     |
 | `price_usd`          | Number   | Optional | The price of the token in USD at the time of the transaction.                                              |
@@ -33,10 +33,12 @@ The request body should be a JSON object with the following fields:
 - **Synced Transactions**:
   - Requires `blockchainWalletId` and `tokenContractId`.
   - Verifies that the `blockchainWalletId` is associated with the `walletId`.
-  - Updates the balance in the specified `blockchainWallet` using `tokenContractId`.
+  - Updates the balance in the specified `blockchainWallet` using `tokenContractId` (only for `DEPOSIT` and `WITHDRAWAL` events).
+  - Throws an error if `WITHDRAWAL` amount exceeds the current balance or if the token is not found in the wallet.
 - **Manual Transactions**:
   - Requires `tokenId`.
-  - Updates the balance in the `manualTokens` array of the `wallet` using `tokenId`.
+  - Updates the balance in the `manualTokens` array of the `wallet` using `tokenId` (only for `DEPOSIT` and `WITHDRAWAL` events).
+  - Throws an error if `WITHDRAWAL` amount exceeds the current balance or if the token is not found in the wallet.
 
 ### Example Request (Manual Deposit)
 

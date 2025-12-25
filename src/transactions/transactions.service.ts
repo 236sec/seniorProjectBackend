@@ -5,14 +5,14 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { AlchemysService } from 'src/alchemys/alchemys.service';
 import {
   BlockchainWallet,
   BlockchainWalletDocument,
 } from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
 import {
   addHexBalances,
-  isZeroOrNegative,
+  isNegetive,
+  isZero,
   subHexBalances,
 } from 'src/common/utils/bigint-string.util';
 import {
@@ -44,7 +44,6 @@ export class TransactionsService {
     private readonly walletModel: Model<WalletDocument>,
     @InjectModel(Token.name)
     private readonly tokenModel: Model<TokenDocument>,
-    private readonly alchemysService: AlchemysService,
   ) {}
   async create(createTransactionDto: CreateTransactionDto) {
     // validate transaction
@@ -227,7 +226,6 @@ export class TransactionsService {
         blockchainWallet.tokens[existingIndex].balance = addHexBalances(
           currentStr,
           deltaStr,
-          18,
         );
       } else {
         blockchainWallet.tokens.push({
@@ -239,14 +237,12 @@ export class TransactionsService {
       if (existingIndex >= 0) {
         const currentStr =
           blockchainWallet.tokens[existingIndex].balance || '0x0';
-        const newBalance = subHexBalances(currentStr, deltaStr, 18);
+        const newBalance = subHexBalances(currentStr, deltaStr);
 
-        if (isZeroOrNegative(newBalance)) {
-          if (newBalance === '0x0') {
-            blockchainWallet.tokens.splice(existingIndex, 1);
-          } else {
-            throw new Error('Insufficient balance for withdrawal');
-          }
+        if (isZero(newBalance)) {
+          blockchainWallet.tokens.splice(existingIndex, 1);
+        } else if (isNegetive(newBalance)) {
+          throw new Error('Insufficient balance for withdrawal');
         } else {
           blockchainWallet.tokens[existingIndex].balance = newBalance;
         }
@@ -276,7 +272,6 @@ export class TransactionsService {
         wallet.manualTokens[existingIndex].balance = addHexBalances(
           currentStr,
           deltaStr,
-          18,
         );
       } else {
         wallet.manualTokens.push({
@@ -287,14 +282,12 @@ export class TransactionsService {
     } else if (eventType === TransactionEventType.WITHDRAWAL) {
       if (existingIndex >= 0) {
         const currentStr = wallet.manualTokens[existingIndex].balance || '0x0';
-        const newBalance = subHexBalances(currentStr, deltaStr, 18);
+        const newBalance = subHexBalances(currentStr, deltaStr);
 
-        if (isZeroOrNegative(newBalance)) {
-          if (newBalance === '0x0') {
-            wallet.manualTokens.splice(existingIndex, 1);
-          } else {
-            throw new Error('Insufficient balance for withdrawal');
-          }
+        if (isZero(newBalance)) {
+          wallet.manualTokens.splice(existingIndex, 1);
+        } else if (isNegetive(newBalance)) {
+          throw new Error('Insufficient balance for withdrawal');
         } else {
           wallet.manualTokens[existingIndex].balance = newBalance;
         }
@@ -331,7 +324,6 @@ export class TransactionsService {
         blockchainWallet.tokens[idx].balance = subHexBalances(
           currentStr,
           deltaStr,
-          18,
         );
         await blockchainWallet.save();
       }

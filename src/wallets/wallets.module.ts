@@ -7,6 +7,7 @@ import {
 } from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
 import { CoingeckoModule } from 'src/coingecko/coingecko.module';
 import { TokensModule } from 'src/tokens/tokens.module';
+import { TransactionsModule } from 'src/transactions/transactions.module';
 import { UsersModule } from '../users/users.module';
 import { Wallet, WalletSchema } from './schemas/wallet.schema';
 import { WalletsController } from './wallets.controller';
@@ -22,6 +23,7 @@ import { WalletsService } from './wallets.service';
     AlchemysModule,
     TokensModule,
     CoingeckoModule,
+    TransactionsModule,
   ],
   controllers: [WalletsController],
   providers: [WalletsService],

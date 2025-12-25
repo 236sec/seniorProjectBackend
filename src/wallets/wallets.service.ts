@@ -14,6 +14,7 @@ import {
 import { CoingeckoService } from 'src/coingecko/coingecko.service';
 import { CHAIN_MAPPING } from 'src/common/constants/chain-mapping.constant';
 import { TokensService } from 'src/tokens/tokens.service';
+import { TransactionsService } from 'src/transactions/transactions.service';
 import { UsersService } from '../users/users.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { Wallet, WalletDocument } from './schemas/wallet.schema';
@@ -31,6 +32,7 @@ export class WalletsService {
     private readonly alchemysService: AlchemysService,
     private readonly tokensService: TokensService,
     private readonly coingeckoService: CoingeckoService,
+    private readonly transactionsService: TransactionsService,
   ) {}
 
   async create(userId: Types.ObjectId, createWalletDto: CreateWalletDto) {
@@ -65,20 +67,28 @@ export class WalletsService {
     return this.walletModel.find().exec();
   }
 
-  findOne(id: Types.ObjectId) {
-    return this.walletModel
-      .findById(id)
-      .populate({
-        path: 'blockchainWalletId',
-        populate: {
-          path: 'tokens.tokenContractId',
+  async findOne(id: Types.ObjectId) {
+    const [wallet, transactions] = await Promise.all([
+      this.walletModel
+        .findById(id)
+        .populate({
+          path: 'blockchainWalletId',
           populate: {
-            path: 'tokenId',
+            path: 'tokens.tokenContractId',
+            populate: {
+              path: 'tokenId',
+            },
           },
-        },
-      })
-      .populate('manualTokens.tokenId')
-      .exec();
+        })
+        .populate('manualTokens.tokenId')
+        .exec(),
+      this.transactionsService.findByWalletId(id),
+    ]);
+
+    return {
+      ...wallet?.toObject(),
+      transactions,
+    };
   }
 
   findByUserId(userId: Types.ObjectId) {

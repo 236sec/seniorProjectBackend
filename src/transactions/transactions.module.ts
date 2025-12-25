@@ -24,6 +24,7 @@ import { TransactionsService } from './transactions.service';
       { name: Token.name, schema: TokenSchema },
     ]),
   ],
+  exports: [TransactionsService],
   controllers: [TransactionsController],
   providers: [TransactionsService],
 })

@@ -101,7 +101,10 @@ export class TransactionsService {
       await wallet.save();
     }
 
-    const createdTransaction = new this.transactionModel(createTransactionDto);
+    const createdTransaction = new this.transactionModel({
+      ...createTransactionDto,
+      walletId: new Types.ObjectId(createTransactionDto.walletId),
+    });
     return createdTransaction.save();
   }
 
@@ -131,7 +134,6 @@ export class TransactionsService {
     const wallet = await this.walletModel.findById(walletId).exec();
     if (!wallet) throw new Error('Wallet not found');
     const results: TransactionDocument[] = [];
-    let isWalletModified = false;
 
     for (const item of items) {
       const dto: CreateTransactionDto = {
@@ -139,57 +141,45 @@ export class TransactionsService {
         walletId,
       } as CreateTransactionDto;
 
-      if (dto.type === TransactionType.SYNCED) {
-        // check blockchain wallet exists
-        const blockchainWallet = await this.blockchainWalletModel
-          .findById(item.blockchainWalletId)
-          .exec();
-        if (!blockchainWallet) throw new Error('Blockchain wallet not found');
-        const blockchainWalletId = blockchainWallet._id.toString();
-
-        if (
-          !wallet.blockchainWalletId.some((id) =>
-            id.equals(blockchainWallet._id),
-          )
-        ) {
-          throw new Error(
-            `Blockchain wallet ${blockchainWalletId} does not belong to the specified wallet`,
-          );
-        }
-
-        // check token contract exists
-        const tokenContract = await this.tokenContractModel
-          .findById(item.tokenContractId)
-          .exec();
-        if (!tokenContract) throw new Error('Token contract not found');
-
-        this.updateWalletBalance(
-          blockchainWallet,
-          tokenContract._id,
-          dto.quantity,
-          dto.event_type,
+      if (dto.type !== TransactionType.SYNCED) {
+        throw new BadRequestException(
+          'Batch creation only supports SYNCED transactions',
         );
-        await blockchainWallet.save();
-      } else if (dto.type === TransactionType.MANUAL) {
-        // check token exists
-        const token = await this.tokenModel.findById(item.tokenId).exec();
-        if (!token) throw new Error('Token not found');
-
-        this.updateManualWalletBalance(
-          wallet,
-          token._id,
-          dto.quantity,
-          dto.event_type,
-        );
-        isWalletModified = true;
       }
 
-      const created = new this.transactionModel(dto);
-      results.push(await created.save());
-    }
+      // check blockchain wallet exists
+      const blockchainWallet = await this.blockchainWalletModel
+        .findById(item.blockchainWalletId)
+        .exec();
+      if (!blockchainWallet) throw new Error('Blockchain wallet not found');
 
-    if (isWalletModified) {
-      await wallet.save();
+      if (
+        !wallet.blockchainWalletId.some((id) => id.equals(blockchainWallet._id))
+      ) {
+        throw new Error(
+          `Blockchain wallet ${blockchainWallet._id.toString()} does not belong to the specified wallet`,
+        );
+      }
+
+      // check token contract exists
+      const tokenContract = await this.tokenContractModel
+        .findById(item.tokenContractId)
+        .exec();
+      if (!tokenContract) throw new Error('Token contract not found');
+
+      this.updateWalletBalance(
+        blockchainWallet,
+        tokenContract._id,
+        dto.quantity,
+        dto.event_type,
+      );
+      await blockchainWallet.save();
+
+      const created = new this.transactionModel({
+        ...dto,
+        walletId: new Types.ObjectId(dto.walletId),
+      });
+      results.push(await created.save());
     }
 
     return results;
@@ -350,5 +340,13 @@ export class TransactionsService {
 
     await this.transactionModel.deleteOne({ _id: tx._id }).exec();
     return { removed: true, id: tx._id.toString() };
+  }
+
+  async findByWalletId(walletId: Types.ObjectId) {
+    // sort by timestamp descending
+    return this.transactionModel
+      .find({ walletId: walletId })
+      .sort({ timestamp: -1 })
+      .exec();
   }
 }

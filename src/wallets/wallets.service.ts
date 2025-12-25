@@ -124,16 +124,15 @@ export class WalletsService {
       await blockchainWallet.save();
     }
 
-    const updatedWallet = await this.walletModel
+    await this.walletModel
       .findByIdAndUpdate(
         walletId,
         { $addToSet: { blockchainWalletId: blockchainWallet._id } },
         { new: true },
       )
-      .populate('blockchainWalletId')
       .exec();
 
-    return updatedWallet;
+    return blockchainWallet;
   }
 
   async getOnChainBalanceByAddress(address: string, chain: string[]) {

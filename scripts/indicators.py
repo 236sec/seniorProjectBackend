@@ -41,7 +41,7 @@ def calculate_rsi(df, period=14):
     df['rsi'] = 100 - (100 / (1 + rs))
     return df
 
-def save_metrics(df):
+def save_metrics(df, output_file=OUTPUT_FILE):
     """Saves data to a shared volume for NestJS to read"""
     try:
         # Ensure the data directory exists
@@ -56,15 +56,16 @@ def save_metrics(df):
 
         # Atomic write: save to a temp file then rename to prevent NestJS 
         # from reading a half-written file.
-        temp_file = OUTPUT_FILE + '.tmp'
+        output_path_file = os.path.join(DATA_DIR, output_file)
+        temp_file = output_path_file + '.tmp'
         with open(temp_file, 'w') as f:
             json.dump({
                 "last_updated": datetime.now().isoformat(),
                 "data": data_to_save
             }, f, indent=4)
         
-        os.replace(temp_file, OUTPUT_FILE)
-        print(f"Metrics successfully updated at {OUTPUT_FILE}")
+        os.replace(temp_file, output_path_file)
+        print(f"Metrics successfully updated at {output_path_file}")
         
     except Exception as e:
         print(f"Error saving file: {e}", file=sys.stderr)
@@ -77,4 +78,4 @@ if __name__ == "__main__":
     print(f"Starting analysis for {target_coin}...")
     btc_data = get_coingecko_data(target_coin)
     btc_data = calculate_rsi(btc_data)
-    save_metrics(btc_data)
+    save_metrics(btc_data, 'bitcoin.json')

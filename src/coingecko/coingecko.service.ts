@@ -30,12 +30,23 @@ export class CoingeckoService {
     }
   }
 
+  private getHeaders() {
+    if (!this.apiKey) return {};
+    const apiUrl = this.configService.get<string>('COINGECKO_API_URL');
+    const headerName = apiUrl?.includes('pro-api')
+      ? 'x-cg-pro-api-key'
+      : 'x-cg-demo-api-key';
+    return { [headerName]: this.apiKey };
+  }
+
   async listCoins() {
     const apiUrl = this.configService.get<string>('COINGECKO_API_URL');
     const url = `${apiUrl}/coins/list`;
 
     try {
-      const response = await firstValueFrom(this.httpService.get(url));
+      const response = await firstValueFrom(
+        this.httpService.get(url, { headers: this.getHeaders() }),
+      );
 
       return response.data as CoingeckoListCoinsResponse;
     } catch (error: unknown) {
@@ -59,7 +70,7 @@ export class CoingeckoService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.get(url, { params }),
+        this.httpService.get(url, { params, headers: this.getHeaders() }),
       );
 
       return response.data as CoingeckoListCoinsWithPlatformsResponse;
@@ -89,7 +100,7 @@ export class CoingeckoService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.get(url, { params }),
+        this.httpService.get(url, { params, headers: this.getHeaders() }),
       );
 
       return response.data as CoingeckoMarketsResponse;
@@ -119,7 +130,7 @@ export class CoingeckoService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.get(url, { params }),
+        this.httpService.get(url, { params, headers: this.getHeaders() }),
       );
 
       return response.data as CoinDetailData;
@@ -142,7 +153,7 @@ export class CoingeckoService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.get(url, { params }),
+        this.httpService.get(url, { params, headers: this.getHeaders() }),
       );
 
       return response.data as AssetPlatformsListResponse;

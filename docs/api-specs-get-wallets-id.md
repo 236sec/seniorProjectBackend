@@ -27,7 +27,6 @@ Returns a JSON object representing the wallet with the following populated field
 - `manualTokens`: Array of manually added token balances.
   - `tokenId`: The full token details.
   - `balance`: The balance of the token
-- `transactions`: Array of transactions associated with the wallet, sorted by timestamp descending.
 
 ### Example Response
 
@@ -99,22 +98,6 @@ Returns a JSON object representing the wallet with the following populated field
         }
       },
       "balance": "0x00000000000000000000000000000000000000000000000000c62a36cfe0d515"
-    }
-  ],
-  "transactions": [
-    {
-      "_id": "694cc2e17b4bcd592401ab5a",
-      "walletId": "692fdc6ec0560f978714bd02",
-      "type": "MANUAL",
-      "event_type": "WITHDRAWAL",
-      "tokenId": "69354fab9ad82c7d4c50b02c",
-      "quantity": "0x056bc75e2d63100000",
-      "price_usd": 55,
-      "cashflow_usd": 5500,
-      "timestamp": "2025-12-25T04:59:57.241Z",
-      "createdAt": "2025-12-25T04:59:57.241Z",
-      "updatedAt": "2025-12-25T04:59:57.241Z",
-      "__v": 0
     }
   ]
 }

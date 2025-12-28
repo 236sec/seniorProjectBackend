@@ -67,28 +67,20 @@ export class WalletsService {
     return this.walletModel.find().exec();
   }
 
-  async findOne(id: Types.ObjectId) {
-    const [wallet, transactions] = await Promise.all([
-      this.walletModel
-        .findById(id)
-        .populate({
-          path: 'blockchainWalletId',
+  findOne(id: Types.ObjectId) {
+    return this.walletModel
+      .findById(id)
+      .populate({
+        path: 'blockchainWalletId',
+        populate: {
+          path: 'tokens.tokenContractId',
           populate: {
-            path: 'tokens.tokenContractId',
-            populate: {
-              path: 'tokenId',
-            },
+            path: 'tokenId',
           },
-        })
-        .populate('manualTokens.tokenId')
-        .exec(),
-      this.transactionsService.findByWalletId(id),
-    ]);
-
-    return {
-      ...wallet?.toObject(),
-      transactions,
-    };
+        },
+      })
+      .populate('manualTokens.tokenId')
+      .exec();
   }
 
   findByUserId(userId: Types.ObjectId) {

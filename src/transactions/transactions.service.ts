@@ -347,6 +347,48 @@ export class TransactionsService {
     return this.transactionModel
       .find({ walletId: walletId })
       .sort({ timestamp: -1 })
+      .populate('tokenId')
       .exec();
+  }
+
+  async findByWalletWithPagination(
+    walletId: Types.ObjectId,
+    limit?: number,
+    offset?: number,
+  ) {
+    // Set defaults
+    const finalLimit = limit && limit > 0 ? limit : 10;
+    const finalOffset = offset && offset > 0 ? offset : 0;
+
+    // Execute query and count in parallel
+    const [data, total] = await Promise.all([
+      this.transactionModel
+        .find({ walletId: walletId })
+        .sort({ timestamp: -1 })
+        .populate('tokenId')
+        .skip(finalOffset)
+        .limit(finalLimit)
+        .exec(),
+      this.transactionModel.countDocuments({ walletId: walletId }).exec(),
+    ]);
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(total / finalLimit);
+    const currentPage = Math.floor(finalOffset / finalLimit) + 1;
+    const hasNextPage = finalOffset + finalLimit < total;
+    const hasPrevPage = finalOffset > 0;
+
+    return {
+      data,
+      pagination: {
+        page: currentPage,
+        limit: finalLimit,
+        offset: finalOffset,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+      },
+    };
   }
 }

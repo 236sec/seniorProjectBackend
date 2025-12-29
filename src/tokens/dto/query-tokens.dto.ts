@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class QueryTokensDto {
   @IsOptional()
@@ -17,4 +17,12 @@ export class QueryTokensDto {
   @IsOptional()
   @IsString()
   search?: string;
+}
+
+export class QueryTokenHistoricalPricesDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  days: number;
 }

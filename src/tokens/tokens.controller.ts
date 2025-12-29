@@ -1,5 +1,8 @@
 import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
-import { QueryTokensDto } from './dto/query-tokens.dto';
+import {
+  QueryTokenHistoricalPricesDto,
+  QueryTokensDto,
+} from './dto/query-tokens.dto';
 import { TokensService } from './tokens.service';
 
 @Controller('tokens')
@@ -67,5 +70,13 @@ export class TokensController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.tokensService.remove(id);
+  }
+
+  @Get(':id/historical-prices')
+  getHistoricalPrices(
+    @Param('id') id: string,
+    @Query() query: QueryTokenHistoricalPricesDto,
+  ) {
+    return this.tokensService.getHistoricalPrices(id, query.days);
   }
 }

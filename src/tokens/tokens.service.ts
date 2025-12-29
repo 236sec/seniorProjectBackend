@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { CoingeckoService } from 'src/coingecko/coingecko.service';
 import {
   CoinDetailData,
@@ -10,6 +10,11 @@ import {
   TokenContract,
   TokenContractDocument,
 } from './schema/token-contract.schema';
+import {
+  DailyPrice,
+  TokenHistoricalPrice,
+  TokenHistoricalPriceDocument,
+} from './schema/token-historical-price.schema';
 import {
   TokenUpdateLog,
   TokenUpdateLogDocument,
@@ -27,6 +32,8 @@ export class TokensService {
     private tokenUpdateLogModel: Model<TokenUpdateLogDocument>,
     @InjectModel(TokenContract.name)
     private tokenContractModel: Model<TokenContractDocument>,
+    @InjectModel(TokenHistoricalPrice.name)
+    private tokenHistoricalPriceModel: Model<TokenHistoricalPriceDocument>,
     private readonly coingeckoService: CoingeckoService,
   ) {}
 
@@ -899,5 +906,234 @@ export class TokensService {
 
   remove(id: string) {
     return this.tokenModel.findOneAndDelete({ id }).exec();
+  }
+
+  /**
+   * Get historical prices for a token (fetches from cache or CoinGecko)
+   * @param coinGeckoId - CoinGecko coin ID
+   * @param days - Number of days of history to retrieve (max 365)
+   */
+  async getHistoricalPrices(coinGeckoId: string, days: number) {
+    const token = await this.tokenModel.findOne({ id: coinGeckoId }).exec();
+    if (!token) {
+      throw new Error(`Token ${coinGeckoId} not found`);
+    }
+
+    const savedHistoricalPrices = await this.tokenHistoricalPriceModel
+      .findOne({ tokenId: token._id })
+      .exec();
+
+    let priceData: DailyPrice[] = [];
+
+    if (savedHistoricalPrices) {
+      const lastUpdatedTime = savedHistoricalPrices.newestDataPoint;
+      const now = new Date();
+      const timeDiff = now.getTime() - lastUpdatedTime.getTime();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+
+      // If data is less than 1 day old, return cached data
+      if (timeDiff < oneDayMs) {
+        priceData = savedHistoricalPrices.dailyPrices;
+      } else {
+        // Data is stale, update it
+        await this.updateHistoricalPrices(token._id, coinGeckoId);
+
+        // Fetch updated data
+        const updated = await this.tokenHistoricalPriceModel
+          .findOne({ tokenId: token._id })
+          .exec();
+        priceData = updated?.dailyPrices || [];
+      }
+    } else {
+      // No cached data, fetch and store initial historical data
+      await this.updateHistoricalPrices(token._id, coinGeckoId, days);
+
+      const newData = await this.tokenHistoricalPriceModel
+        .findOne({ tokenId: token._id })
+        .exec();
+      priceData = newData?.dailyPrices || [];
+    }
+
+    // Calculate available time ranges based on data length
+    const totalDays = priceData.length;
+    const availableRanges = {
+      '1d': totalDays >= 1,
+      '7d': totalDays >= 7,
+      '1m': totalDays >= 30,
+      '3m': totalDays >= 90,
+      '1y': totalDays >= 364,
+    };
+
+    return {
+      prices: priceData.slice(-days),
+      totalAvailableDays: totalDays,
+      availableRanges,
+      oldestDataPoint: priceData[0]?.date,
+      newestDataPoint: priceData[priceData.length - 1]?.date,
+    };
+  }
+
+  /**
+   * Update historical prices for a token with 365-day rolling window
+   * @param tokenId - MongoDB ObjectId of the token
+   * @param coinGeckoId - CoinGecko coin ID
+   * @param initialDays - Number of days to fetch initially (default 365)
+   */
+  async updateHistoricalPrices(
+    tokenId: Types.ObjectId,
+    coinGeckoId: string,
+    initialDays: number = 365,
+  ) {
+    const MAX_DAYS = 365;
+    if (initialDays > MAX_DAYS) {
+      initialDays = MAX_DAYS;
+    }
+
+    try {
+      // Check if historical data already exists
+      const existingData = await this.tokenHistoricalPriceModel
+        .findOne({ tokenId })
+        .exec();
+
+      if (!existingData) {
+        // No existing data - fetch full 365 days and create new document
+        const historicalData =
+          await this.coingeckoService.getHistoricalMarketData(
+            coinGeckoId,
+            initialDays,
+            'daily',
+            '2',
+          );
+
+        // Transform CoinGecko data to our schema format
+        const dailyPrices = historicalData.prices
+          .map((priceData, index) => ({
+            date: new Date(priceData[0]),
+            price: priceData[1],
+            volume_24h: historicalData.total_volumes[index]?.[1] || 0,
+            market_cap: historicalData.market_caps[index]?.[1] || 0,
+          }))
+          .slice(-MAX_DAYS)
+          .slice(0, -1);
+
+        if (!dailyPrices || dailyPrices.length === 0) {
+          throw new Error(`No historical price data found for ${coinGeckoId}`);
+        }
+
+        // Create new document
+        await this.tokenHistoricalPriceModel.create({
+          tokenId,
+          dailyPrices: dailyPrices,
+          oldestDataPoint: dailyPrices[0]?.date,
+          newestDataPoint: dailyPrices[dailyPrices.length - 1]?.date,
+        });
+      } else {
+        // Existing data - fetch only new days since last update
+        const lastDate = existingData.newestDataPoint;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const lastDateNormalized = new Date(lastDate);
+        lastDateNormalized.setHours(0, 0, 0, 0);
+
+        // Check if we need to fetch new data
+        if (lastDateNormalized.getTime() >= today.getTime()) {
+          return;
+        }
+
+        const historicalData =
+          await this.coingeckoService.getHistoricalMarketData(
+            coinGeckoId,
+            initialDays,
+            'daily',
+            '2',
+          );
+
+        // Transform new data
+        const newDailyPrices = historicalData.prices.map(
+          (priceData, index) => ({
+            date: new Date(priceData[0]),
+            price: priceData[1],
+            volume_24h: historicalData.total_volumes[index]?.[1] || 0,
+            market_cap: historicalData.market_caps[index]?.[1] || 0,
+          }),
+        );
+
+        if (newDailyPrices.length === 0) {
+          return;
+        }
+
+        // Merge with existing data
+        const allPrices = [...existingData.dailyPrices, ...newDailyPrices];
+
+        // Sort by date
+        allPrices.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+        // Remove duplicates (same date)
+        const uniquePrices = allPrices.filter(
+          (price, index, self) =>
+            index ===
+            self.findIndex(
+              (p) => p.date.toDateString() === price.date.toDateString(),
+            ),
+        );
+
+        // Keep only last 365 days (rolling window)
+        const limitedPrices = uniquePrices.slice(-MAX_DAYS);
+
+        // Update document
+        existingData.dailyPrices = limitedPrices;
+        existingData.oldestDataPoint = limitedPrices[0]?.date;
+        existingData.newestDataPoint =
+          limitedPrices[limitedPrices.length - 1]?.date;
+
+        await existingData.save();
+      }
+    } catch (error: unknown) {
+      this.logger.error(
+        `Error updating historical prices for ${coinGeckoId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Batch update historical prices for multiple tokens
+   * @param coinGeckoIds - Array of CoinGecko coin IDs to update
+   * @param delayMs - Delay between requests in milliseconds (default 1000)
+   */
+  async batchUpdateHistoricalPrices(
+    coinGeckoIds: string[],
+    delayMs: number = 1000,
+  ) {
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: [] as string[],
+    };
+
+    for (const coinGeckoId of coinGeckoIds) {
+      try {
+        const token = await this.tokenModel.findOne({ id: coinGeckoId }).exec();
+        if (!token) {
+          results.failed++;
+          results.errors.push(`Token ${coinGeckoId} not found`);
+          continue;
+        }
+
+        await this.updateHistoricalPrices(token._id, coinGeckoId);
+        results.success++;
+
+        // Delay to respect rate limits
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      } catch (error) {
+        results.failed++;
+        results.errors.push(
+          `${coinGeckoId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    return results;
   }
 }

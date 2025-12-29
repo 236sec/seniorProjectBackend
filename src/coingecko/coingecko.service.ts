@@ -8,6 +8,7 @@ import {
   CoingeckoListCoinsResponse,
   CoingeckoListCoinsWithPlatformsResponse,
   CoingeckoMarketsResponse,
+  HistoricalMarketData,
 } from './interfaces/coingecko-api.interface';
 
 @Injectable()
@@ -163,6 +164,81 @@ export class CoingeckoService {
 
       this.logger.error(
         `Error fetching asset platforms list from CoinGecko: ${errorMessage}`,
+      );
+      throw error;
+    }
+  }
+
+  async getHistoricalMarketData(
+    coinId: string,
+    days: number,
+    interval: 'daily',
+    precision: '2',
+  ): Promise<HistoricalMarketData> {
+    const apiUrl = this.configService.get<string>('COINGECKO_API_URL');
+    const url = `${apiUrl}/coins/${coinId}/market_chart`;
+
+    const params = {
+      vs_currency: 'usd',
+      days: days.toString(),
+      interval,
+      precision,
+    };
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(url, { params, headers: this.getHeaders() }),
+      );
+
+      return response.data as HistoricalMarketData;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(
+        `Error fetching historical market data for coin ${coinId} from CoinGecko: ${errorMessage}`,
+      );
+      throw error;
+    }
+  }
+
+  async getCurrentPrice(
+    coinIds: string[],
+  ): Promise<{ [coinId: string]: number }> {
+    if (coinIds.length === 0) {
+      return {};
+    }
+
+    const apiUrl = this.configService.get<string>('COINGECKO_API_URL');
+    const url = `${apiUrl}/simple/price`;
+
+    const params = {
+      ids: coinIds.join(','),
+      vs_currencies: 'usd',
+    };
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(url, { params, headers: this.getHeaders() }),
+      );
+
+      const data = response.data as {
+        [coinId: string]: { usd: number };
+      };
+
+      // Transform to simpler format
+      const result: { [coinId: string]: number } = {};
+      for (const [coinId, prices] of Object.entries(data)) {
+        result[coinId] = prices.usd;
+      }
+
+      return result;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(
+        `Error fetching current prices from CoinGecko: ${errorMessage}`,
       );
       throw error;
     }

@@ -50,3 +50,15 @@ export interface AssetPlatformsListData {
     large: string;
   };
 }
+
+export interface HistoricalMarketData {
+  prices: [number, number][];
+  market_caps: [number, number][];
+  total_volumes: [number, number][];
+}
+
+export interface CurrentPriceResponse {
+  [coinId: string]: {
+    usd: number;
+  };
+}

@@ -6,6 +6,10 @@ import {
   TokenContractSchema,
 } from './schema/token-contract.schema';
 import {
+  TokenHistoricalPrice,
+  TokenHistoricalPriceSchema,
+} from './schema/token-historical-price.schema';
+import {
   TokenUpdateLog,
   TokenUpdateLogSchema,
 } from './schema/token-update-log.schema';
@@ -19,6 +23,7 @@ import { TokensService } from './tokens.service';
       { name: Token.name, schema: TokenSchema },
       { name: TokenUpdateLog.name, schema: TokenUpdateLogSchema },
       { name: TokenContract.name, schema: TokenContractSchema },
+      { name: TokenHistoricalPrice.name, schema: TokenHistoricalPriceSchema },
     ]),
     CoingeckoModule,
   ],

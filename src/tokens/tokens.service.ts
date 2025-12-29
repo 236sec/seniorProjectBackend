@@ -964,9 +964,38 @@ export class TokensService {
       '1y': totalDays >= 364,
     };
 
+    // Fetch current price data and add to prices array
+    let currentPrice: number | undefined;
+    try {
+      const currentPriceData = await this.coingeckoService.getCurrentPrice([
+        coinGeckoId,
+      ]);
+      if (currentPriceData[coinGeckoId]) {
+        const volume_24h = currentPriceData[coinGeckoId].usd_24h_vol || 0;
+        const market_cap = currentPriceData[coinGeckoId].usd_market_cap || 0;
+        const last_updated = currentPriceData[coinGeckoId].last_updated_at;
+        if (volume_24h && market_cap && last_updated) {
+          currentPrice = currentPriceData[coinGeckoId].usd;
+          const lastUpdatedDate = new Date(last_updated * 1000);
+          const latestPrice: DailyPrice = {
+            date: lastUpdatedDate,
+            price: currentPrice,
+            volume_24h: volume_24h || 0,
+            market_cap: market_cap || 0,
+          };
+
+          priceData = [...priceData, latestPrice];
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error fetching current price for ${coinGeckoId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
     return {
       prices: priceData.slice(-days),
-      totalAvailableDays: totalDays,
+      totalAvailableDays: currentPrice ? totalDays + 1 : totalDays,
       availableRanges,
       oldestDataPoint: priceData[0]?.date,
       newestDataPoint: priceData[priceData.length - 1]?.date,

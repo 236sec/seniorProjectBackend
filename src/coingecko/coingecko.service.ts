@@ -10,6 +10,7 @@ import {
   CoingeckoListCoinsResponse,
   CoingeckoListCoinsWithPlatformsResponse,
   CoingeckoMarketsResponse,
+  CurrentPriceResponse,
   HistoricalMarketData,
 } from './interfaces/coingecko-api.interface';
 
@@ -205,21 +206,16 @@ export class CoingeckoService {
     }
   }
 
-  async getCurrentPrice(
-    coinIds: string[],
-  ): Promise<{ [coinId: string]: { usd: number; usd_24h_change: number } }> {
+  async getCurrentPrice(coinIds: string[]): Promise<CurrentPriceResponse> {
     if (coinIds.length === 0) {
       return {};
     }
-    const results: {
-      [coinId: string]: { usd: number; usd_24h_change: number };
-    } = {};
+    const results: CurrentPriceResponse = {};
     const nonCachedCoinIds: string[] = [];
     for (const coinId of coinIds) {
-      const cachedPrice = await this.cacheManager.get<{
-        usd: number;
-        usd_24h_change: number;
-      }>(`coingecko_price_${coinId}`);
+      const cachedPrice = await this.cacheManager.get<
+        CurrentPriceResponse[number]
+      >(`coingecko_price_${coinId}`);
       if (cachedPrice) {
         results[coinId] = cachedPrice;
       } else {
@@ -237,6 +233,9 @@ export class CoingeckoService {
       ids: nonCachedCoinIds.join(','),
       vs_currencies: 'usd',
       include_24hr_change: 'true',
+      include_market_cap: 'true',
+      include_24hr_vol: 'true',
+      include_last_updated_at: 'true',
     };
 
     try {
@@ -244,9 +243,7 @@ export class CoingeckoService {
         this.httpService.get(url, { params, headers: this.getHeaders() }),
       );
 
-      const data = response.data as {
-        [coinId: string]: { usd: number; usd_24h_change: number };
-      };
+      const data = response.data as CurrentPriceResponse;
 
       for (const coinId of nonCachedCoinIds) {
         await this.cacheManager.set(

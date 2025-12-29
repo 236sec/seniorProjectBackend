@@ -1,10 +1,11 @@
 import { HttpModule } from '@nestjs/axios';
+import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { CoingeckoService } from './coingecko.service';
 
 @Module({
-  imports: [HttpModule, ConfigModule],
+  imports: [HttpModule, ConfigModule, CacheModule.register({ ttl: 120000 })], //ttl in milliseconds
   providers: [CoingeckoService],
   exports: [CoingeckoService],
 })

@@ -1,6 +1,8 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Cache } from 'cache-manager';
 import { firstValueFrom } from 'rxjs';
 import {
   AssetPlatformsListResponse,
@@ -19,6 +21,7 @@ export class CoingeckoService {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
     this.apiKey = this.configService.get<string>('COINGECKO_API_KEY');
 
@@ -208,12 +211,30 @@ export class CoingeckoService {
     if (coinIds.length === 0) {
       return {};
     }
+    const results: {
+      [coinId: string]: { usd: number; usd_24h_change: number };
+    } = {};
+    const nonCachedCoinIds: string[] = [];
+    for (const coinId of coinIds) {
+      const cachedPrice = await this.cacheManager.get<{
+        usd: number;
+        usd_24h_change: number;
+      }>(`coingecko_price_${coinId}`);
+      if (cachedPrice) {
+        results[coinId] = cachedPrice;
+      } else {
+        nonCachedCoinIds.push(coinId);
+      }
+    }
+    if (nonCachedCoinIds.length === 0) {
+      return results;
+    }
 
     const apiUrl = this.configService.get<string>('COINGECKO_API_URL');
     const url = `${apiUrl}/simple/price`;
 
     const params = {
-      ids: coinIds.join(','),
+      ids: nonCachedCoinIds.join(','),
       vs_currencies: 'usd',
       include_24hr_change: 'true',
     };
@@ -227,7 +248,16 @@ export class CoingeckoService {
         [coinId: string]: { usd: number; usd_24h_change: number };
       };
 
-      return data;
+      for (const coinId of nonCachedCoinIds) {
+        await this.cacheManager.set(
+          `coingecko_price_${coinId}`,
+          data[coinId],
+          120000,
+        );
+        results[coinId] = data[coinId];
+      }
+
+      return results;
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);

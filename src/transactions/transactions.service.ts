@@ -9,6 +9,7 @@ import {
   BlockchainWallet,
   BlockchainWalletDocument,
 } from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
+import { CoingeckoService } from 'src/coingecko/coingecko.service';
 import {
   addHexBalances,
   isNegetive,
@@ -44,6 +45,7 @@ export class TransactionsService {
     private readonly walletModel: Model<WalletDocument>,
     @InjectModel(Token.name)
     private readonly tokenModel: Model<TokenDocument>,
+    private readonly coingeckoService: CoingeckoService,
   ) {}
   async create(createTransactionDto: CreateTransactionDto) {
     // validate transaction
@@ -105,7 +107,14 @@ export class TransactionsService {
       ...createTransactionDto,
       walletId: new Types.ObjectId(createTransactionDto.walletId),
     });
-    return createdTransaction.save();
+    const savedTransaction = await createdTransaction.save();
+
+    // Calculate and update portfolio performance
+    await this.calculateAndUpdatePortfolioPerformance(
+      new Types.ObjectId(createTransactionDto.walletId),
+    );
+
+    return savedTransaction;
   }
 
   async validateTransaction(
@@ -181,6 +190,11 @@ export class TransactionsService {
       });
       results.push(await created.save());
     }
+
+    // Calculate and update portfolio performance after batch
+    await this.calculateAndUpdatePortfolioPerformance(
+      new Types.ObjectId(walletId),
+    );
 
     return results;
   }
@@ -339,6 +353,10 @@ export class TransactionsService {
     }
 
     await this.transactionModel.deleteOne({ _id: tx._id }).exec();
+
+    // Recalculate portfolio performance after removal
+    await this.calculateAndUpdatePortfolioPerformance(tx.walletId);
+
     return { removed: true, id: tx._id.toString() };
   }
 
@@ -390,5 +408,91 @@ export class TransactionsService {
         hasPrevPage,
       },
     };
+  }
+
+  private async calculateAndUpdatePortfolioPerformance(
+    walletId: Types.ObjectId,
+  ) {
+    // Fetch all transactions for the wallet
+    const transactions = await this.transactionModel.find({ walletId }).exec();
+
+    // Update performance with all transactions
+    await this.updatePerformaceWithTransactions(walletId, transactions);
+  }
+
+  private async updatePerformaceWithTransactions(
+    walletId: Types.ObjectId,
+    transactions: TransactionDocument[],
+  ) {
+    const wallet = await this.walletModel.findById(walletId).exec();
+    if (!wallet) {
+      return new NotFoundException('Wallet not found');
+    }
+
+    // Group transactions by tokenId
+    const transactionsByToken = new Map<string, TransactionDocument[]>();
+
+    transactions.forEach((tx) => {
+      if (!tx.tokenId) return;
+
+      const tokenIdStr = tx.tokenId.toString();
+      if (!transactionsByToken.has(tokenIdStr)) {
+        transactionsByToken.set(tokenIdStr, []);
+      }
+      transactionsByToken.get(tokenIdStr)!.push(tx);
+    });
+
+    // Update or create performance for each token
+    for (const [tokenIdStr, tokenTransactions] of transactionsByToken) {
+      const tokenId = new Types.ObjectId(tokenIdStr);
+
+      // Calculate totals from transactions
+      let totalInvestedAmount = 0;
+      let totalBalance = '0x0';
+      let totalCashflowUsd = 0;
+
+      tokenTransactions.forEach((tx) => {
+        // Calculate total invested amount (deposits)
+        if (tx.event_type === TransactionEventType.DEPOSIT && tx.cashflow_usd) {
+          totalInvestedAmount += tx.cashflow_usd;
+        }
+
+        // Calculate total balance
+        if (tx.event_type === TransactionEventType.DEPOSIT) {
+          totalBalance = addHexBalances(totalBalance, tx.quantity || '0x0');
+        } else if (tx.event_type === TransactionEventType.WITHDRAWAL) {
+          totalBalance = subHexBalances(totalBalance, tx.quantity || '0x0');
+        }
+
+        // Calculate total cashflow USD
+        if (tx.cashflow_usd) {
+          totalCashflowUsd += tx.cashflow_usd;
+        }
+      });
+
+      // Find existing performance entry
+      const existingIndex = wallet.portfolioPerformance.findIndex((p) =>
+        p.tokenId.equals(tokenId),
+      );
+
+      if (existingIndex >= 0) {
+        // Update existing performance
+        wallet.portfolioPerformance[existingIndex].totalInvestedAmount =
+          totalInvestedAmount;
+        wallet.portfolioPerformance[existingIndex].totalBalance = totalBalance;
+        wallet.portfolioPerformance[existingIndex].totalCashflowUsd =
+          totalCashflowUsd;
+      } else {
+        // Create new performance entry
+        wallet.portfolioPerformance.push({
+          tokenId,
+          totalInvestedAmount,
+          totalBalance,
+          totalCashflowUsd,
+        });
+      }
+    }
+
+    await wallet.save();
   }
 }

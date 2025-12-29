@@ -1,5 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import {
+  PortfolioPerformance,
+  PortfolioPerformanceSchema,
+} from './portfolio-performance.schema';
 
 export type WalletDocument = Wallet & Document;
 
@@ -41,6 +45,9 @@ export class Wallet {
 
   @Prop({ type: [ManualTokenBalanceSchema], default: [] })
   manualTokens: ManualTokenBalance[];
+
+  @Prop({ type: [PortfolioPerformanceSchema], default: [] })
+  portfolioPerformance: PortfolioPerformance[];
 }
 
 export const WalletSchema = SchemaFactory.createForClass(Wallet);

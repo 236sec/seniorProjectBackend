@@ -30,7 +30,9 @@ Returns a JSON object with two top-level properties:
     - `totalInvestedAmount`: Total amount invested in USD
     - `totalBalance`: Hex string representing the total balance
     - `totalCashflowUsd`: Total cashflow in USD
-- `tokens`: Object mapping token IDs to their full details (id, name, symbol, image)
+- `tokens`: Object mapping token IDs to their full details (id, name, symbol, image, currentPrice, priceChange24h)
+  - `currentPrice`: Current price in USD (optional)
+  - `priceChange24h`: 24-hour price change percentage (optional)
 
 ### Example Response
 
@@ -88,9 +90,9 @@ Returns a JSON object with two top-level properties:
       "image": {
         "thumb": "https://coin-images.coingecko.com/coins/images/68126/thumb/QsRnEyrQ_400x400.jpg?1760513386",
         "small": "https://coin-images.coingecko.com/coins/images/68126/small/QsRnEyrQ_400x400.jpg?1760513386",
-        "large": "https://coin-images.coingecko.com/coins/images/68126/large/QsRnEyrQ_400x400.jpg?1760513386",
-        "_id": "69392a2e1dabd665ae5ec884"
-      }
+       ,
+      "currentPrice": 0.00012345,
+      "priceChange24h": -2.5
     },
     "69354fab9ad82c7d4c50c750": {
       "_id": "69354fab9ad82c7d4c50c750",
@@ -101,6 +103,10 @@ Returns a JSON object with two top-level properties:
         "thumb": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
         "small": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
         "large": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
+        "_id": "693f9679cd011622ce9b988d"
+      },
+      "currentPrice": 3421.89,
+      "priceChange24h": 1.25 "large": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
         "_id": "693f9679cd011622ce9b988d"
       }
     }

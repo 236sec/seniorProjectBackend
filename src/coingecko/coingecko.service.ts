@@ -204,7 +204,7 @@ export class CoingeckoService {
 
   async getCurrentPrice(
     coinIds: string[],
-  ): Promise<{ [coinId: string]: number }> {
+  ): Promise<{ [coinId: string]: { usd: number; usd_24h_change: number } }> {
     if (coinIds.length === 0) {
       return {};
     }
@@ -215,6 +215,7 @@ export class CoingeckoService {
     const params = {
       ids: coinIds.join(','),
       vs_currencies: 'usd',
+      include_24hr_change: 'true',
     };
 
     try {
@@ -223,16 +224,10 @@ export class CoingeckoService {
       );
 
       const data = response.data as {
-        [coinId: string]: { usd: number };
+        [coinId: string]: { usd: number; usd_24h_change: number };
       };
 
-      // Transform to simpler format
-      const result: { [coinId: string]: number } = {};
-      for (const [coinId, prices] of Object.entries(data)) {
-        result[coinId] = prices.usd;
-      }
-
-      return result;
+      return data;
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);

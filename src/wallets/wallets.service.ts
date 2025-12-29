@@ -102,6 +102,9 @@ export class WalletsService {
     const tokensMap = new Map<string, TokenInfo>();
     const walletObj = wallet.toObject() as PopulatedWallet;
 
+    // Collect all unique token IDs for price fetching
+    const tokenIdsForPrice = new Set<string>();
+
     // Extract tokens from manualTokens and create normalized array
     const normalizedManualTokens: NormalizedManualToken[] = [];
     if (walletObj.manualTokens && Array.isArray(walletObj.manualTokens)) {
@@ -115,6 +118,9 @@ export class WalletsService {
           // Populated token
           const token = item.tokenId;
           const tokenId = token._id.toString();
+          if (token.id) {
+            tokenIdsForPrice.add(token.id);
+          }
           tokensMap.set(tokenId, this.toTokenInfo(token));
           normalizedManualTokens.push({
             tokenId: tokenId,
@@ -168,6 +174,9 @@ export class WalletsService {
                 const populatedContract = token.tokenContractId;
                 const populatedToken = populatedContract.tokenId;
                 const tokenId = populatedToken._id.toString();
+                if (populatedToken.id) {
+                  tokenIdsForPrice.add(populatedToken.id);
+                }
                 tokensMap.set(tokenId, this.toTokenInfo(populatedToken));
                 normalizedTokens.push({
                   ...token,
@@ -201,6 +210,29 @@ export class WalletsService {
         }
       });
     }
+
+    // Fetch current prices for all tokens
+    let priceData: {
+      [coinId: string]: { usd: number; usd_24h_change: number };
+    } = {};
+    if (tokenIdsForPrice.size > 0) {
+      try {
+        priceData = await this.coingeckoService.getCurrentPrice(
+          Array.from(tokenIdsForPrice),
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error fetching prices: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    tokensMap.forEach((tokenInfo) => {
+      if (tokenInfo.id && priceData[tokenInfo.id]) {
+        tokenInfo.currentPrice = priceData[tokenInfo.id].usd;
+        tokenInfo.priceChange24h = priceData[tokenInfo.id].usd_24h_change;
+      }
+    });
 
     // Build normalized wallet object
     const normalizedWallet: NormalizedWallet = {

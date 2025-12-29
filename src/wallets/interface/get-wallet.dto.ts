@@ -59,6 +59,8 @@ export interface TokenInfo {
     small?: string;
     large?: string;
   };
+  currentPrice?: number;
+  priceChange24h?: number;
   [key: string]: any;
 }
 

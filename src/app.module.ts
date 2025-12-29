@@ -8,17 +8,17 @@ import {
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import * as mongoose from 'mongoose';
+import { AlchemysModule } from './alchemys/alchemys.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { LoggerMiddleware } from './common/middleware/logger.middleware';
-import { UsersModule } from './users/users.module';
-import { AlchemysModule } from './alchemys/alchemys.module';
-import { WalletsModule } from './wallets/wallets.module';
-import { TokensModule } from './tokens/tokens.module';
 import { BlockchainWalletsModule } from './blockchain-wallets/blockchain-wallets.module';
 import { CoingeckoModule } from './coingecko/coingecko.module';
-import { TransactionsModule } from './transactions/transactions.module';
+import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { IndicatorsModule } from './indicators/indicators.module';
+import { TokensModule } from './tokens/tokens.module';
+import { TransactionsModule } from './transactions/transactions.module';
+import { UsersModule } from './users/users.module';
+import { WalletsModule } from './wallets/wallets.module';
 
 @Module({
   imports: [
@@ -37,6 +37,7 @@ import { IndicatorsModule } from './indicators/indicators.module';
             methodName: string,
             ...methodArgs: unknown[]
           ) => {
+            const MAX_QUERY_LENGTH = 500;
             let query = '';
             if (methodArgs[0] !== undefined) {
               if (typeof methodArgs[0] === 'string') {
@@ -53,6 +54,12 @@ import { IndicatorsModule } from './indicators/indicators.module';
                 query = String(methodArgs[0]);
               }
             }
+
+            // Truncate if too long
+            if (query.length > MAX_QUERY_LENGTH) {
+              query = query.substring(0, MAX_QUERY_LENGTH) + '... (truncated)';
+            }
+
             logger.debug(`${collectionName}.${methodName}(${query})`);
           },
         );

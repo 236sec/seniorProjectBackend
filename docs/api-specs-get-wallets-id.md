@@ -18,87 +18,92 @@ Retrieves detailed information about a specific wallet, including its associated
 
 ### Response
 
-Returns a JSON object representing the wallet with the following populated fields:
+Returns a JSON object with two top-level properties:
 
-- `blockchainWalletId`: Array of associated blockchain wallets.
-  - `tokens`: Array of token balances within the blockchain wallet.
-    - `tokenContractId`: The token contract details.
-      - `tokenId`: The full token details (symbol, name, image, etc.).
-- `manualTokens`: Array of manually added token balances.
-  - `tokenId`: The full token details.
-  - `balance`: The balance of the token
+- `wallet`: The wallet object containing:
+  - `blockchainWalletId`: Array of associated blockchain wallets with address, chains, and tokens arrays
+  - `manualTokens`: Array of manually added token balances
+    - `tokenId`: String reference to the token ID (not populated)
+    - `balance`: Hex string representing the token balance
+  - `portfolioPerformance`: Array of performance metrics for each token
+    - `tokenId`: String reference to the token ID
+    - `totalInvestedAmount`: Total amount invested in USD
+    - `totalBalance`: Hex string representing the total balance
+    - `totalCashflowUsd`: Total cashflow in USD
+- `tokens`: Object mapping token IDs to their full details (id, name, symbol, image)
 
 ### Example Response
 
 ```json
 {
-  "_id": "692fdc6ec0560f978714bd02",
-  "userId": "69270c413879682de513e6a8",
-  "name": "My Main Portfolio",
-  "description": "Primary crypto portfolio with DeFi and trading addresses",
-  "createdAt": "2025-12-03T06:45:02.165Z",
-  "updatedAt": "2025-12-22T05:05:59.360Z",
-  "__v": 1,
-  "blockchainWalletId": [
-    {
-      "_id": "693fbc361dc3e77088703e0b",
-      "address": "0x12A1423B97E2cB34186B751cA543E79dCfd3374A",
-      "chains": ["optimistic-ethereum"],
-      "tokens": [
-        {
-          "tokenContractId": {
-            "_id": "693f9673cd011622ce9b97a9",
-            "tokenId": {
-              "_id": "69354fab9ad82c7d4c50f628",
-              "id": "weth",
-              "__v": 0,
-              "createdAt": "2025-12-07T09:58:02.519Z",
-              "name": "WETH",
-              "symbol": "weth",
-              "updatedAt": "2025-12-15T05:02:49.939Z",
-              "image": {
-                "thumb": "https://coin-images.coingecko.com/coins/images/2518/large/weth.png?1696503332",
-                "small": "https://coin-images.coingecko.com/coins/images/2518/large/weth.png?1696503332",
-                "large": "https://coin-images.coingecko.com/coins/images/2518/large/weth.png?1696503332",
-                "_id": "693f9679cd011622ce9b98a2"
-              }
-            },
-            "coinGeckoId": "weth",
-            "chainId": "zircuit",
-            "contractAddress": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-            "symbol": "weth",
-            "name": "WETH",
-            "createdAt": "2025-12-15T05:02:43.934Z",
-            "updatedAt": "2025-12-15T05:02:43.934Z",
-            "__v": 0
-          },
-          "balance": "0x000000000000000000000000000000000000000000000000018c546d9fc1aa2a"
-        }
-      ],
-      "createdAt": "2025-12-15T07:43:50.420Z",
-      "updatedAt": "2025-12-22T05:16:18.185Z",
-      "__v": 6
-    }
-  ],
-  "manualTokens": [
-    {
-      "tokenId": {
-        "_id": "69354fab9ad82c7d4c50c750",
-        "id": "ethereum",
-        "__v": 0,
-        "createdAt": "2025-12-07T09:58:02.516Z",
-        "name": "Ethereum",
-        "symbol": "eth",
-        "updatedAt": "2025-12-15T05:02:49.939Z",
-        "image": {
-          "thumb": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
-          "small": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
-          "large": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
-          "_id": "693f9679cd011622ce9b988d"
-        }
+  "wallet": {
+    "_id": "694cea2b62472cb319056372",
+    "userId": "69270c413879682de513e6a8",
+    "name": "My Main Portfolio 1",
+    "description": "Primary crypto portfolio with DeFi and trading addresses",
+    "blockchainWalletId": [
+      {
+        "_id": "694cea3862472cb319056377",
+        "address": "0x4508e47900a14e66d190ea4c2b3a8c8054710a63",
+        "chains": ["ethereum", "eth-sepolia"],
+        "tokens": [],
+        "createdAt": "2025-12-25T07:39:36.550Z",
+        "updatedAt": "2025-12-25T07:39:36.550Z"
+      }
+    ],
+    "manualTokens": [
+      {
+        "tokenId": "69354fab9ad82c7d4c50b02c",
+        "balance": "0x55de6a779bbac0000"
       },
-      "balance": "0x00000000000000000000000000000000000000000000000000c62a36cfe0d515"
+      {
+        "tokenId": "69354fab9ad82c7d4c50c750",
+        "balance": "0x318a8db3f835454"
+      }
+    ],
+    "portfolioPerformance": [
+      {
+        "tokenId": "69354fab9ad82c7d4c50b02c",
+        "totalInvestedAmount": 5508,
+        "totalBalance": "0x55de6a779bbac0000",
+        "totalCashflowUsd": 5673
+      },
+      {
+        "tokenId": "69354fab9ad82c7d4c50c750",
+        "totalInvestedAmount": 8000,
+        "totalBalance": "0x318a8db3f835454",
+        "totalCashflowUsd": 8000
+      }
+    ],
+    "createdAt": "2025-12-25T07:39:23.787Z",
+    "updatedAt": "2025-12-29T09:43:49.466Z",
+    "__v": 7
+  },
+  "tokens": {
+    "69354fab9ad82c7d4c50b02c": {
+      "_id": "69354fab9ad82c7d4c50b02c",
+      "id": "01111010011110000110001001110100-token",
+      "name": "01111010011110000110001001110100",
+      "symbol": "01111010011110000110001001110100",
+      "image": {
+        "thumb": "https://coin-images.coingecko.com/coins/images/68126/thumb/QsRnEyrQ_400x400.jpg?1760513386",
+        "small": "https://coin-images.coingecko.com/coins/images/68126/small/QsRnEyrQ_400x400.jpg?1760513386",
+        "large": "https://coin-images.coingecko.com/coins/images/68126/large/QsRnEyrQ_400x400.jpg?1760513386",
+        "_id": "69392a2e1dabd665ae5ec884"
+      }
+    },
+    "69354fab9ad82c7d4c50c750": {
+      "_id": "69354fab9ad82c7d4c50c750",
+      "id": "ethereum",
+      "name": "Ethereum",
+      "symbol": "eth",
+      "image": {
+        "thumb": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
+        "small": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
+        "large": "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628",
+        "_id": "693f9679cd011622ce9b988d"
+      }
     }
-  ]
+  }
 }
 ```

@@ -17,6 +17,18 @@ import { TokensService } from 'src/tokens/tokens.service';
 import { TransactionsService } from 'src/transactions/transactions.service';
 import { UsersService } from '../users/users.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
+import {
+  NormalizedBlockchainWallet,
+  NormalizedManualToken,
+  NormalizedPortfolioPerformance,
+  NormalizedTokenContract,
+  NormalizedWallet,
+  PopulatedToken,
+  PopulatedWallet,
+  TokenInfo,
+  WalletWithTokens,
+} from './interface/get-wallet.dto';
+import { PortfolioPerformance } from './schemas/portfolio-performance.schema';
 import { Wallet, WalletDocument } from './schemas/wallet.schema';
 
 @Injectable()
@@ -67,8 +79,8 @@ export class WalletsService {
     return this.walletModel.find().exec();
   }
 
-  findOne(id: Types.ObjectId) {
-    return this.walletModel
+  async findOne(id: Types.ObjectId): Promise<WalletWithTokens | null> {
+    const wallet = await this.walletModel
       .findById(id)
       .populate({
         path: 'blockchainWalletId',
@@ -81,6 +93,136 @@ export class WalletsService {
       })
       .populate('manualTokens.tokenId')
       .exec();
+
+    if (!wallet) {
+      return null;
+    }
+
+    // Normalize the response: extract tokens and replace with IDs
+    const tokensMap = new Map<string, TokenInfo>();
+    const walletObj = wallet.toObject() as PopulatedWallet;
+
+    // Extract tokens from manualTokens and create normalized array
+    const normalizedManualTokens: NormalizedManualToken[] = [];
+    if (walletObj.manualTokens && Array.isArray(walletObj.manualTokens)) {
+      walletObj.manualTokens.forEach((item) => {
+        if (
+          typeof item.tokenId === 'object' &&
+          '_id' in item.tokenId &&
+          'symbol' in item.tokenId &&
+          'name' in item.tokenId
+        ) {
+          // Populated token
+          const token = item.tokenId;
+          const tokenId = token._id.toString();
+          tokensMap.set(tokenId, this.toTokenInfo(token));
+          normalizedManualTokens.push({
+            tokenId: tokenId,
+            balance: item.balance,
+          });
+        } else {
+          // Not populated, just ObjectId
+          normalizedManualTokens.push({
+            tokenId: item.tokenId.toString(),
+            balance: item.balance,
+          });
+        }
+      });
+    }
+
+    // Extract tokens from portfolioPerformance and create normalized array
+    const normalizedPortfolioPerformance: NormalizedPortfolioPerformance[] = [];
+    if (
+      walletObj.portfolioPerformance &&
+      Array.isArray(walletObj.portfolioPerformance)
+    ) {
+      walletObj.portfolioPerformance.forEach((item: PortfolioPerformance) => {
+        normalizedPortfolioPerformance.push({
+          tokenId: item.tokenId.toString(),
+          totalInvestedAmount: item.totalInvestedAmount,
+          totalBalance: item.totalBalance,
+          totalCashflowUsd: item.totalCashflowUsd,
+        });
+      });
+    }
+
+    // Extract tokens from blockchainWalletId.tokens if populated
+    const normalizedBlockchainWallets: NormalizedBlockchainWallet[] = [];
+    if (walletObj.blockchainWalletId) {
+      const blockchainWallets = Array.isArray(walletObj.blockchainWalletId)
+        ? walletObj.blockchainWalletId
+        : [walletObj.blockchainWalletId];
+
+      blockchainWallets.forEach((bw) => {
+        // Check if it's populated (not just an ObjectId)
+        if (typeof bw === 'object' && 'address' in bw) {
+          const normalizedTokens: NormalizedTokenContract[] = [];
+
+          if (bw.tokens && Array.isArray(bw.tokens)) {
+            bw.tokens.forEach((token) => {
+              if (
+                token.tokenContractId &&
+                typeof token.tokenContractId === 'object' &&
+                'tokenId' in token.tokenContractId
+              ) {
+                const populatedContract = token.tokenContractId;
+                const populatedToken = populatedContract.tokenId;
+                const tokenId = populatedToken._id.toString();
+                tokensMap.set(tokenId, this.toTokenInfo(populatedToken));
+                normalizedTokens.push({
+                  ...token,
+                  tokenContractId: {
+                    ...populatedContract,
+                    tokenId: tokenId,
+                  },
+                } as NormalizedTokenContract);
+              } else {
+                // Not populated, just keep as is
+                normalizedTokens.push({
+                  tokenContractId: {
+                    tokenId: (
+                      token.tokenContractId as Types.ObjectId
+                    ).toString(),
+                  },
+                  balance: token.balance,
+                } as NormalizedTokenContract);
+              }
+            });
+          }
+
+          normalizedBlockchainWallets.push({
+            _id: bw._id,
+            address: bw.address,
+            chains: bw.chains,
+            tokens: normalizedTokens,
+            createdAt: bw.createdAt,
+            updatedAt: bw.updatedAt,
+          });
+        }
+      });
+    }
+
+    // Build normalized wallet object
+    const normalizedWallet: NormalizedWallet = {
+      _id: walletObj._id,
+      userId: walletObj.userId,
+      name: walletObj.name,
+      description: walletObj.description,
+      blockchainWalletId: normalizedBlockchainWallets,
+      manualTokens: normalizedManualTokens,
+      portfolioPerformance: normalizedPortfolioPerformance,
+      createdAt: walletObj.createdAt || new Date(),
+      updatedAt: walletObj.updatedAt || new Date(),
+      __v: walletObj.__v,
+    };
+
+    // Convert tokens map to object
+    const tokens: Record<string, TokenInfo> = Object.fromEntries(tokensMap);
+
+    return {
+      wallet: normalizedWallet,
+      tokens,
+    };
   }
 
   findByUserId(userId: Types.ObjectId) {
@@ -213,7 +355,7 @@ export class WalletsService {
 
         return {
           contractAddress: balance.contractAddress,
-          balance: balance.rawBalance, // Already formatted by the service
+          balance: balance.rawBalance,
           balanceFormatted: balance.balance,
           symbol: balance.symbol,
           name: balance.name,
@@ -324,6 +466,17 @@ export class WalletsService {
       totalTokens: enrichedBalances.length,
       tokensWithMetadata: enrichedBalances.filter((b) => b.token !== null)
         .length,
+    };
+  }
+
+  // Helper to convert PopulatedToken to TokenInfo
+  toTokenInfo(token: PopulatedToken): TokenInfo {
+    return {
+      _id: token._id.toString(),
+      id: token.id || '',
+      name: token.name,
+      symbol: token.symbol,
+      image: token.image,
     };
   }
 }

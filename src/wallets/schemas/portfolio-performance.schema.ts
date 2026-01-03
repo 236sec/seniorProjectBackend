@@ -16,6 +16,12 @@ export class PortfolioPerformance {
 
   @Prop({ type: Number, required: true, alias: 'total_cashflow_usd' })
   totalCashflowUsd: number;
+
+  @Prop({ type: Number, required: true, default: 0 })
+  costBasis: number;
+
+  @Prop({ type: Number, required: true, default: 0 })
+  averageUnitCost: number;
 }
 
 export const PortfolioPerformanceSchema =

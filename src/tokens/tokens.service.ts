@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CoingeckoService } from 'src/coingecko/coingecko.service';
@@ -908,15 +908,47 @@ export class TokensService {
     return this.tokenModel.findOneAndDelete({ id }).exec();
   }
 
+  async addTokenById(coinGeckoId: string) {
+    try {
+      const coinData: CoinDetailData =
+        await this.coingeckoService.getCoinById(coinGeckoId);
+      return this.tokenModel.updateOne(
+        { id: coinData.id },
+        {
+          $set: {
+            id: coinData.id,
+            symbol: coinData.symbol,
+            name: coinData.name,
+            image: coinData.image,
+          },
+        },
+        { upsert: true },
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error adding token ${coinGeckoId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
+  }
+
   /**
    * Get historical prices for a token (fetches from cache or CoinGecko)
    * @param coinGeckoId - CoinGecko coin ID
    * @param days - Number of days of history to retrieve (max 365)
    */
   async getHistoricalPrices(coinGeckoId: string, days: number) {
-    const token = await this.tokenModel.findOne({ id: coinGeckoId }).exec();
+    let token = await this.tokenModel.findOne({ id: coinGeckoId }).exec();
     if (!token) {
-      throw new Error(`Token ${coinGeckoId} not found`);
+      const addedToken = await this.addTokenById(coinGeckoId);
+      if (!addedToken) {
+        return new NotFoundException(`Token ${coinGeckoId} not found`);
+      }
+      token = await this.tokenModel.findOne({ id: coinGeckoId }).exec();
+    }
+
+    if (!token) {
+      return new NotFoundException(`Token ${coinGeckoId} not found`);
     }
 
     const savedHistoricalPrices = await this.tokenHistoricalPriceModel

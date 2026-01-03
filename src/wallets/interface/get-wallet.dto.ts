@@ -17,6 +17,8 @@ export interface NormalizedPortfolioPerformance {
   totalInvestedAmount: number;
   totalBalance: string;
   totalCashflowUsd: number;
+  costBasis: number;
+  averageUnitCost: number;
 }
 
 export interface NormalizedTokenContract {

@@ -148,6 +148,8 @@ export class WalletsService {
           totalInvestedAmount: item.totalInvestedAmount,
           totalBalance: item.totalBalance,
           totalCashflowUsd: item.totalCashflowUsd,
+          costBasis: item.costBasis,
+          averageUnitCost: item.averageUnitCost,
         });
       });
     }
@@ -316,10 +318,6 @@ export class WalletsService {
       chain,
       address,
     );
-    this.logger.debug(
-      `Fetched balances for address ${address} on chains ${chain.join(', ')}`,
-    );
-    this.logger.debug(`Balances data: ${JSON.stringify(balancesData)}`);
 
     // Enrich with token metadata from our database
     const enrichedBalances = await Promise.all(

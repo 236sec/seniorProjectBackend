@@ -9,6 +9,10 @@ import {
   TokenContract,
   TokenContractSchema,
 } from 'src/tokens/schema/token-contract.schema';
+import {
+  TokenHistoricalPrice,
+  TokenHistoricalPriceSchema,
+} from 'src/tokens/schema/token-historical-price.schema';
 import { Token, TokenSchema } from 'src/tokens/schema/token.schema';
 import { Wallet, WalletSchema } from 'src/wallets/schemas/wallet.schema';
 import { Transaction, TransactionSchema } from './schema/transaction.schema';
@@ -23,6 +27,7 @@ import { TransactionsService } from './transactions.service';
       { name: BlockchainWallet.name, schema: BlockchainWalletSchema },
       { name: Wallet.name, schema: WalletSchema },
       { name: Token.name, schema: TokenSchema },
+      { name: TokenHistoricalPrice.name, schema: TokenHistoricalPriceSchema },
     ]),
     CoingeckoModule,
   ],

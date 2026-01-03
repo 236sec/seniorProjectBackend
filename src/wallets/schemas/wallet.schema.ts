@@ -33,7 +33,7 @@ export class Wallet {
   @Prop({ type: String, required: true })
   name: string;
 
-  @Prop({ type: String, required: true, index: true })
+  @Prop({ type: String })
   description: string;
 
   @Prop({

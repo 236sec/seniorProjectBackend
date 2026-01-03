@@ -15,6 +15,7 @@ import {
   isNegetive,
   isZero,
   subHexBalances,
+  toBigInt,
 } from 'src/common/utils/bigint-string.util';
 import {
   TokenContract,
@@ -112,6 +113,7 @@ export class TransactionsService {
     // Calculate and update portfolio performance
     await this.calculateAndUpdatePortfolioPerformance(
       new Types.ObjectId(createTransactionDto.walletId),
+      [savedTransaction],
     );
 
     return savedTransaction;
@@ -194,6 +196,7 @@ export class TransactionsService {
     // Calculate and update portfolio performance after batch
     await this.calculateAndUpdatePortfolioPerformance(
       new Types.ObjectId(walletId),
+      results,
     );
 
     return results;
@@ -355,7 +358,7 @@ export class TransactionsService {
     await this.transactionModel.deleteOne({ _id: tx._id }).exec();
 
     // Recalculate portfolio performance after removal
-    await this.calculateAndUpdatePortfolioPerformance(tx.walletId);
+    await this.calculateAndUpdatePortfolioPerformance(tx.walletId, [tx]);
 
     return { removed: true, id: tx._id.toString() };
   }
@@ -412,7 +415,9 @@ export class TransactionsService {
 
   private async calculateAndUpdatePortfolioPerformance(
     walletId: Types.ObjectId,
+    txs: TransactionDocument[],
   ) {
+    void txs;
     // Fetch all transactions for the wallet
     const transactions = await this.transactionModel.find({ walletId }).exec();
 
@@ -446,12 +451,23 @@ export class TransactionsService {
     for (const [tokenIdStr, tokenTransactions] of transactionsByToken) {
       const tokenId = new Types.ObjectId(tokenIdStr);
 
+      // Sort transactions by date for cost basis calculation
+      tokenTransactions.sort(
+        (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+      );
+
       // Calculate totals from transactions
       let totalInvestedAmount = 0;
       let totalBalance = '0x0';
       let totalCashflowUsd = 0;
 
+      // Cost Basis Calculation Variables
+      let currentCostBasis = 0;
+      let currentQuantity = 0n;
+
       tokenTransactions.forEach((tx) => {
+        const txQuantity = toBigInt(tx.quantity || '0x0');
+
         // Calculate total invested amount (deposits)
         if (tx.event_type === TransactionEventType.DEPOSIT && tx.cashflow_usd) {
           totalInvestedAmount += tx.cashflow_usd;
@@ -466,9 +482,39 @@ export class TransactionsService {
 
         // Calculate total cashflow USD
         if (tx.cashflow_usd) {
-          totalCashflowUsd += tx.cashflow_usd;
+          if (tx.event_type === TransactionEventType.DEPOSIT) {
+            totalCashflowUsd -= tx.cashflow_usd;
+          } else if (tx.event_type === TransactionEventType.WITHDRAWAL) {
+            totalCashflowUsd += tx.cashflow_usd;
+          }
+        }
+
+        // Cost Basis Calculation
+        if (tx.event_type === TransactionEventType.DEPOSIT) {
+          // Step 2: Add the New Deposit
+          currentCostBasis += tx.cashflow_usd || 0;
+          currentQuantity += txQuantity;
+        } else if (tx.event_type === TransactionEventType.WITHDRAWAL) {
+          // Step 1: Adjust the Old Cost Basis for Withdrawals
+          if (currentQuantity > 0n) {
+            const remainingQuantity = currentQuantity - txQuantity;
+            const fraction =
+              Number(remainingQuantity) / Number(currentQuantity);
+            currentCostBasis = currentCostBasis * fraction;
+            currentQuantity = remainingQuantity;
+          } else {
+            currentQuantity -= txQuantity;
+          }
         }
       });
+
+      // Calculate Average Unit Cost
+      // Assuming 18 decimals as per other parts of the code
+      const currentQuantityNum = Number(currentQuantity) / 1e18;
+      let averageUnitCost = 0;
+      if (currentQuantityNum > 0) {
+        averageUnitCost = currentCostBasis / currentQuantityNum;
+      }
 
       // Find existing performance entry
       const existingIndex = wallet.portfolioPerformance.findIndex((p) =>
@@ -482,6 +528,9 @@ export class TransactionsService {
         wallet.portfolioPerformance[existingIndex].totalBalance = totalBalance;
         wallet.portfolioPerformance[existingIndex].totalCashflowUsd =
           totalCashflowUsd;
+        wallet.portfolioPerformance[existingIndex].costBasis = currentCostBasis;
+        wallet.portfolioPerformance[existingIndex].averageUnitCost =
+          averageUnitCost;
       } else {
         // Create new performance entry
         wallet.portfolioPerformance.push({
@@ -489,6 +538,8 @@ export class TransactionsService {
           totalInvestedAmount,
           totalBalance,
           totalCashflowUsd,
+          costBasis: currentCostBasis,
+          averageUnitCost: averageUnitCost,
         });
       }
     }

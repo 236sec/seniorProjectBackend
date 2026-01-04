@@ -7,5 +7,5 @@ export class CreateWalletDto {
 
   @IsOptional()
   @IsString()
-  readonly description: string;
+  readonly description?: string;
 }

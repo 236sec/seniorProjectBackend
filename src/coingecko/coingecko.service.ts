@@ -212,16 +212,25 @@ export class CoingeckoService {
     }
     const results: CurrentPriceResponse = {};
     const nonCachedCoinIds: string[] = [];
-    for (const coinId of coinIds) {
-      const cachedPrice = await this.cacheManager.get<
-        CurrentPriceResponse[number]
-      >(`coingecko_price_${coinId}`);
+
+    // Check cache for all coins in parallel
+    const cachedPrices = await Promise.all(
+      coinIds.map((coinId) =>
+        this.cacheManager.get<CurrentPriceResponse[number]>(
+          `coingecko_price_${coinId}`,
+        ),
+      ),
+    );
+
+    cachedPrices.forEach((cachedPrice, index) => {
+      const coinId = coinIds[index];
       if (cachedPrice) {
         results[coinId] = cachedPrice;
       } else {
         nonCachedCoinIds.push(coinId);
       }
-    }
+    });
+
     if (nonCachedCoinIds.length === 0) {
       return results;
     }
@@ -245,14 +254,21 @@ export class CoingeckoService {
 
       const data = response.data as CurrentPriceResponse;
 
+      // Save to cache in parallel
+      const saveCachePromises: Promise<any>[] = [];
       for (const coinId of nonCachedCoinIds) {
-        await this.cacheManager.set(
-          `coingecko_price_${coinId}`,
-          data[coinId],
-          120000,
-        );
-        results[coinId] = data[coinId];
+        if (data[coinId]) {
+          results[coinId] = data[coinId];
+          saveCachePromises.push(
+            this.cacheManager.set(
+              `coingecko_price_${coinId}`,
+              data[coinId],
+              300000,
+            ),
+          );
+        }
       }
+      await Promise.all(saveCachePromises);
 
       return results;
     } catch (error: unknown) {

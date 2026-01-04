@@ -92,6 +92,7 @@ export class WalletsService {
         },
       })
       .populate('manualTokens.tokenId')
+      .lean()
       .exec();
 
     if (!wallet) {
@@ -100,7 +101,7 @@ export class WalletsService {
 
     // Normalize the response: extract tokens and replace with IDs
     const tokensMap = new Map<string, TokenInfo>();
-    const walletObj = wallet.toObject() as PopulatedWallet;
+    const walletObj = wallet as PopulatedWallet;
 
     // Collect all unique token IDs for price fetching
     const tokenIdsForPrice = new Set<string>();

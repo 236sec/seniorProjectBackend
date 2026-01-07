@@ -5,22 +5,39 @@ import {
 } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import { join } from 'path';
-import { RSIResponse } from './interfaces/rsi.interface';
+import { IndicatorResponse } from './interfaces/indicator.interface';
 
 @Injectable()
 export class IndicatorsService {
   private readonly logger = new Logger(IndicatorsService.name);
   private readonly dataPath = join(process.cwd(), 'data');
 
-  async getRSIIndicator(coinId: string): Promise<RSIResponse> {
+  async getPriceIndicators(coinId: string): Promise<number[]> {
     try {
       const rawData = await fs.readFile(
         join(this.dataPath, `${coinId}.json`),
         'utf-8',
       );
-      console.log('Raw data read from file:', rawData);
-      const parsedData: RSIResponse = JSON.parse(rawData) as RSIResponse;
-      console.log('Parsed JSON data:', parsedData);
+      const prices: number[] = JSON.parse(rawData) as number[];
+      return prices;
+    } catch (error) {
+      this.logger.error('Error reading price indicators file:', error);
+      throw new InternalServerErrorException(
+        'Could not read price indicators data',
+      );
+    }
+  }
+
+  async getIndicator(
+    coinId: string,
+    indicatorType: 'rsi' | 'ema20' | 'sma20',
+  ): Promise<IndicatorResponse> {
+    try {
+      const rawData = await fs.readFile(
+        join(this.dataPath, `${coinId}-${indicatorType}.json`),
+        'utf-8',
+      );
+      const parsedData = JSON.parse(rawData) as IndicatorResponse;
       return parsedData;
     } catch (error) {
       this.logger.error('Error reading metrics file:', error);

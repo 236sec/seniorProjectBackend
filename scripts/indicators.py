@@ -1,81 +1,100 @@
-import requests
 import pandas as pd
-import json
-import os
-import sys
-from datetime import datetime
 
-# 1. HANDLE DIRECTORY PATHS
-# When NestJS triggers this, 'cwd' (current working directory) might be different.
-# We force the script to find the project root.
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, 'data')
-OUTPUT_FILE = os.path.join(DATA_DIR, 'metrics.json')
 
-def get_coingecko_data(coin_id='bitcoin', days=365):
-    """Fetch historical price data from CoinGecko"""
-    try:
-        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
-        params = {'vs_currency': 'usd', 'days': days, 'interval': 'daily'}
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status() # Trigger error for 4xx/5xx responses
-        data = response.json()
-        
-        prices = data['prices']
-        df = pd.DataFrame(prices, columns=['timestamp', 'price'])
-        df['date'] = pd.to_datetime(df['timestamp'], unit='ms')
-        return df
-    except Exception as e:
-        # NestJS will capture this in the .stderr.on('data') listener
-        print(f"Error fetching data: {e}", file=sys.stderr)
-        sys.exit(1)
+def calculate_rsi(df, window: int = 14, price_col: str = "close"):
+    """Calculate Relative Strength Index (RSI) and append it to the DataFrame.
 
-def calculate_rsi(df, period=14):
-    """Calculate Relative Strength Index (RSI)"""
-    delta = df['price'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    
-    rs = gain / loss
-    df['rsi'] = 100 - (100 / (1 + rs))
+    Uses Wilder's smoothing on gains and losses over the provided window.
+    Returns the same DataFrame instance with a new ``rsi`` column.
+    """
+    if price_col not in df.columns:
+        raise ValueError(f"Column '{price_col}' not found in DataFrame")
+
+    prices = df[price_col]
+    deltas = prices.diff()
+
+    # Positive and negative changes
+    gains = deltas.clip(lower=0)
+    losses = -deltas.clip(upper=0)
+
+    # Wilder's smoothing: exponential weighted mean with alpha = 1/window
+    avg_gain = gains.ewm(alpha=1 / window, adjust=False).mean()
+    avg_loss = losses.ewm(alpha=1 / window, adjust=False).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+
+    df['rsi'] = rsi
     return df
 
-def save_metrics(df, output_file=OUTPUT_FILE):
-    """Saves data to a shared volume for NestJS to read"""
-    try:
-        # Ensure the data directory exists
-        if not os.path.exists(DATA_DIR):
-            os.makedirs(DATA_DIR)
+def calculate_sma(df, window=20, price_col: str = "close"):
+    """Simple Moving Average (SMA) over ``price_col``."""
+    if price_col not in df.columns:
+        raise ValueError(f"Column '{price_col}' not found in DataFrame")
+    return df[price_col].rolling(window=window).mean()
 
-        result_df = df.dropna(subset=['rsi'])
-        data_to_save = result_df[['date', 'price', 'rsi']].to_dict(orient='records')
-        
-        for record in data_to_save:
-            record['date'] = record['date'].strftime('%Y-%m-%d')
+def calculate_ema(df, span=20, price_col: str = "close"):
+    """Exponential Moving Average (EMA) over ``price_col``."""
+    if price_col not in df.columns:
+        raise ValueError(f"Column '{price_col}' not found in DataFrame")
+    return df[price_col].ewm(span=span, adjust=False).mean()
 
-        # Atomic write: save to a temp file then rename to prevent NestJS 
-        # from reading a half-written file.
-        output_path_file = os.path.join(DATA_DIR, output_file)
-        temp_file = output_path_file + '.tmp'
-        with open(temp_file, 'w') as f:
-            json.dump({
-                "last_updated": datetime.now().isoformat(),
-                "data": data_to_save
-            }, f, indent=4)
-        
-        os.replace(temp_file, output_path_file)
-        print(f"Metrics successfully updated at {output_path_file}")
-        
-    except Exception as e:
-        print(f"Error saving file: {e}", file=sys.stderr)
-        sys.exit(1)
-
-if __name__ == "__main__":
-    # You can pass the coin_id from NestJS: spawn('python', ['script.py', 'ethereum'])
-    target_coin = sys.argv[1] if len(sys.argv) > 1 else 'bitcoin'
+def calculate_macd(df, fast=12, slow=26, signal=9):
+    """
+    MACD (Moving Average Convergence Divergence)
+    Returns: DataFrame with 'macd_line', 'signal_line', and 'histogram'.
+    """
+    # 1. Calculate Fast and Slow EMAs
+    ema_fast = df['close'].ewm(span=fast, adjust=False).mean()
+    ema_slow = df['close'].ewm(span=slow, adjust=False).mean()
     
-    print(f"Starting analysis for {target_coin}...")
-    btc_data = get_coingecko_data(target_coin)
-    btc_data = calculate_rsi(btc_data)
-    save_metrics(btc_data, 'bitcoin.json')
+    # 2. MACD Line = Fast EMA - Slow EMA
+    macd_line = ema_fast - ema_slow
+    
+    # 3. Signal Line = EMA of the MACD Line
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    
+    # 4. Histogram = MACD Line - Signal Line
+    histogram = macd_line - signal_line
+    
+    return pd.DataFrame({
+        'macd_line': macd_line,
+        'signal_line': signal_line,
+        'macd_hist': histogram
+    })
+
+def calculate_ichimoku(df):
+    """
+    Ichimoku Cloud
+    Standard Settings: 9 (Conversion), 26 (Base), 52 (Leading B), 26 (Lagging).
+    """
+    # Helper to calculate midpoint of High/Low over a window
+    def get_period_high_low_avg(window):
+        period_high = df['high'].rolling(window=window).max()
+        period_low = df['low'].rolling(window=window).min()
+        return (period_high + period_low) / 2
+
+    # 1. Tenkan-sen (Conversion Line): (9-period High + 9-period Low) / 2
+    tenkan_sen = get_period_high_low_avg(9)
+
+    # 2. Kijun-sen (Base Line): (26-period High + 26-period Low) / 2
+    kijun_sen = get_period_high_low_avg(26)
+
+    # 3. Senkou Span A (Leading Span A): (Tenkan + Kijun) / 2
+    # Important: Shifted FORWARD by 26 periods
+    senkou_span_a = ((tenkan_sen + kijun_sen) / 2).shift(26)
+
+    # 4. Senkou Span B (Leading Span B): (52-period High + 52-period Low) / 2
+    # Important: Shifted FORWARD by 26 periods
+    senkou_span_b = get_period_high_low_avg(52).shift(26)
+
+    # 5. Chikou Span (Lagging Span): Close shifted BACKWARDS by 26 periods
+    chikou_span = df['close'].shift(-26)
+
+    return pd.DataFrame({
+        'ichimoku_tenkan': tenkan_sen,
+        'ichimoku_kijun': kijun_sen,
+        'ichimoku_span_a': senkou_span_a,
+        'ichimoku_span_b': senkou_span_b,
+        'ichimoku_chikou': chikou_span
+    })

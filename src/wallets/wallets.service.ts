@@ -286,7 +286,7 @@ export class WalletsService {
     }
 
     let blockchainWallet = await this.blockchainWalletModel
-      .findOne({ address })
+      .findOne({ walletId, address })
       .exec();
 
     if (!blockchainWallet) {

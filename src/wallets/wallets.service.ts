@@ -23,6 +23,7 @@ import {
   NormalizedPortfolioPerformance,
   NormalizedTokenContract,
   NormalizedWallet,
+  PopulatedBlockchainWallet,
   PopulatedToken,
   PopulatedWallet,
   TokenInfo,
@@ -314,6 +315,150 @@ export class WalletsService {
     return blockchainWallet;
   }
 
+  async getDifferentBalanceInBlockchainWallets(
+    blockchainWalletId: Types.ObjectId,
+  ) {
+    // Populate blockchain wallet with token contract and token details
+    const blockchainWallet = (await this.blockchainWalletModel
+      .findById(blockchainWalletId)
+      .populate({
+        path: 'tokens.tokenContractId',
+        populate: {
+          path: 'tokenId',
+        },
+      })
+      .exec()) as PopulatedBlockchainWallet | null;
+
+    if (!blockchainWallet) {
+      throw new NotFoundException('Blockchain wallet does not exist');
+    }
+
+    // Get on-chain balances (ERC-20 + native) enriched with metadata
+    const onChainBalances = await this.getOnChainBalanceByAddress(
+      blockchainWallet.address,
+      blockchainWallet.chains,
+    );
+
+    const NATIVE_CONTRACT_ADDRESS =
+      '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+
+    type BalanceEntry = {
+      chainId: string;
+      contractAddress: string;
+      balance: bigint;
+      decimals: number | null;
+      symbol?: string | null;
+      name?: string | null;
+      tokenInfo?: TokenInfo;
+    };
+
+    // Build on-chain map
+    const onChainMap = new Map<string, BalanceEntry>();
+    for (const b of onChainBalances.balances ?? []) {
+      const chainId = b.network;
+      const contract = (b.contractAddress || '').toLowerCase();
+      if (!chainId || !contract) continue;
+      const raw = String(b.balance ?? '0');
+      onChainMap.set(`${chainId}:${contract}`, {
+        chainId,
+        contractAddress: contract,
+        balance: BigInt(raw),
+        decimals: typeof b.decimals === 'number' ? b.decimals : null,
+        symbol: b.symbol ?? null,
+        name: b.name ?? null,
+      });
+    }
+    for (const n of onChainBalances.nativeBalances ?? []) {
+      const chainId = n.network;
+      const raw = String(n.balance ?? '0');
+      onChainMap.set(`${chainId}:${NATIVE_CONTRACT_ADDRESS}`, {
+        chainId,
+        contractAddress: NATIVE_CONTRACT_ADDRESS,
+        balance: BigInt(raw),
+        decimals: null,
+        symbol: null,
+        name: null,
+      });
+    }
+
+    // Build stored map from DB
+    const storedMap = new Map<string, BalanceEntry>();
+    for (const t of blockchainWallet.tokens ?? []) {
+      const tc = t.tokenContractId as unknown as {
+        chainId: string;
+        contractAddress: string;
+        symbol?: string;
+        name?: string;
+        tokenId?: PopulatedToken | Types.ObjectId;
+      };
+      if (!tc || typeof tc !== 'object') continue;
+      const chainId = tc.chainId;
+      const contract = (tc.contractAddress || '').toLowerCase();
+      if (!chainId || !contract) continue;
+      const rawStored = String(t.balance ?? '0');
+      const tokenInfo =
+        tc.tokenId && typeof tc.tokenId === 'object'
+          ? this.toTokenInfo(tc.tokenId as PopulatedToken)
+          : undefined;
+      storedMap.set(`${chainId}:${contract}`, {
+        chainId,
+        contractAddress: contract,
+        balance: BigInt(rawStored),
+        decimals: null,
+        symbol: tc.symbol ?? undefined,
+        name: tc.name ?? undefined,
+        tokenInfo,
+      });
+    }
+
+    // Compute differences; include only non-zero diffs and new tokens with non-zero balance
+    const allKeys = new Set<string>([
+      ...onChainMap.keys(),
+      ...storedMap.keys(),
+    ]);
+
+    const differences = [] as Array<{
+      chainId: string;
+      contractAddress: string;
+      walletBalance: string;
+      onChainBalance: string;
+      difference: string;
+      decimals: number | null;
+      symbol?: string | null;
+      name?: string | null;
+      token?: TokenInfo | null;
+    }>;
+
+    for (const key of allKeys) {
+      const oc = onChainMap.get(key);
+      const st = storedMap.get(key);
+      const chainId = oc?.chainId ?? st?.chainId ?? '';
+      const contractAddress = oc?.contractAddress ?? st?.contractAddress ?? '';
+      const onChainBal = oc?.balance ?? 0n;
+      const walletBal = st?.balance ?? 0n;
+      const diff = onChainBal - walletBal;
+      if (diff === 0n) continue;
+      differences.push({
+        chainId,
+        contractAddress,
+        walletBalance: walletBal.toString(),
+        onChainBalance: onChainBal.toString(),
+        difference: diff.toString(),
+        decimals: oc?.decimals ?? null,
+        symbol: oc?.symbol ?? st?.symbol ?? null,
+        name: oc?.name ?? st?.name ?? null,
+        token: st?.tokenInfo ?? null,
+      });
+    }
+
+    return {
+      address: blockchainWallet.address,
+      chains: blockchainWallet.chains,
+      count: differences.length,
+      differences,
+    };
+  }
+
   async getOnChainBalanceByAddress(address: string, chain: string[]) {
     const balancesData = await this.alchemysService.getTokenBalances(
       chain,
@@ -489,14 +634,19 @@ export class WalletsService {
       }),
     );
 
+    // Filter out any entries that don't have token metadata
+    const filteredBalances = enrichedBalances.filter((b) => b.token !== null);
+    const filteredNativeBalances = enrichedNativeBalances.filter(
+      (b) => b.token !== null,
+    );
+
     return {
       address,
       chain,
-      nativeBalances: enrichedNativeBalances,
-      balances: enrichedBalances,
-      totalTokens: enrichedBalances.length,
-      tokensWithMetadata: enrichedBalances.filter((b) => b.token !== null)
-        .length,
+      nativeBalances: filteredNativeBalances,
+      balances: filteredBalances,
+      totalTokens: filteredBalances.length,
+      tokensWithMetadata: filteredBalances.length,
     };
   }
 

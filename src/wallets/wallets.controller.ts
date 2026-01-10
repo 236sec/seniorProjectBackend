@@ -36,11 +36,6 @@ export class WalletsController {
     return this.walletsService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
-    return this.walletsService.findOne(id);
-  }
-
   @Get('user/:userId')
   findByUserId(@Param('userId', ParseObjectIdPipe) userId: Types.ObjectId) {
     return this.walletsService.findByUserId(userId);
@@ -56,6 +51,31 @@ export class WalletsController {
     return this.walletsService.getOnChainBalanceByAddress(address, chains);
   }
 
+  @Get('blockchainWallets/:blockchainWalletId/diff')
+  getDiffBalanceBlockchainWallet(
+    @Param('blockchainWalletId', ParseObjectIdPipe)
+    blockchainWalletId: Types.ObjectId,
+  ) {
+    return this.walletsService.getDifferentBalanceInBlockchainWallets(
+      blockchainWalletId,
+    );
+  }
+
+  @Post('blockchainWallets')
+  addBlockchainWallet(@Body() dto: AddBlockchainWalletDto) {
+    const walletId = new Types.ObjectId(dto.walletId);
+    return this.walletsService.addBlockchainWalletToWallet(
+      walletId,
+      dto.address,
+      dto.chains,
+    );
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
+    return this.walletsService.findOne(id);
+  }
+
   @Patch(':id')
   update(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
@@ -67,16 +87,6 @@ export class WalletsController {
   @Delete(':id')
   remove(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
     return this.walletsService.remove(id);
-  }
-
-  @Post('blockchainWallets')
-  addBlockchainWallet(@Body() dto: AddBlockchainWalletDto) {
-    const walletId = new Types.ObjectId(dto.walletId);
-    return this.walletsService.addBlockchainWalletToWallet(
-      walletId,
-      dto.address,
-      dto.chains,
-    );
   }
 
   @Get('transactions/:walletId')

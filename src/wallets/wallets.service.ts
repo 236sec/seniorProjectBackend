@@ -359,6 +359,15 @@ export class WalletsService {
       const contract = (b.contractAddress || '').toLowerCase();
       if (!chainId || !contract) continue;
       const raw = String(b.balance ?? '0');
+      const tokenInfo = b.token
+        ? {
+            _id: '', // On-chain data doesn't have MongoDB _id
+            id: b.token.id,
+            symbol: b.token.symbol,
+            name: b.token.name,
+            image: b.token.image,
+          }
+        : undefined;
       onChainMap.set(`${chainId}:${contract}`, {
         chainId,
         contractAddress: contract,
@@ -366,18 +375,29 @@ export class WalletsService {
         decimals: typeof b.decimals === 'number' ? b.decimals : null,
         symbol: b.symbol ?? null,
         name: b.name ?? null,
+        tokenInfo,
       });
     }
     for (const n of onChainBalances.nativeBalances ?? []) {
       const chainId = n.network;
       const raw = String(n.balance ?? '0');
+      const tokenInfo = n.token
+        ? {
+            _id: '', // On-chain data doesn't have MongoDB _id
+            id: n.token.id,
+            symbol: n.token.symbol,
+            name: n.token.name,
+            image: n.token.image,
+          }
+        : undefined;
       onChainMap.set(`${chainId}:${NATIVE_CONTRACT_ADDRESS}`, {
         chainId,
         contractAddress: NATIVE_CONTRACT_ADDRESS,
         balance: BigInt(raw),
         decimals: null,
-        symbol: null,
-        name: null,
+        symbol: n.symbol ?? null,
+        name: n.name ?? null,
+        tokenInfo,
       });
     }
 
@@ -418,43 +438,75 @@ export class WalletsService {
     ]);
 
     const differences = [] as Array<{
-      chainId: string;
       contractAddress: string;
+      balance: string;
+      balanceFormatted: string;
       walletBalance: string;
-      onChainBalance: string;
-      difference: string;
+      walletBalanceFormatted: string;
+      symbol: string | null;
+      name: string | null;
+      logo: string | null;
       decimals: number | null;
-      symbol?: string | null;
-      name?: string | null;
-      token?: TokenInfo | null;
+      network: string;
+      token: {
+        id: string;
+        symbol: string;
+        name: string;
+        image: TokenInfo['image'];
+      };
     }>;
 
     for (const key of allKeys) {
       const oc = onChainMap.get(key);
       const st = storedMap.get(key);
-      const chainId = oc?.chainId ?? st?.chainId ?? '';
+      const network = oc?.chainId ?? st?.chainId ?? '';
       const contractAddress = oc?.contractAddress ?? st?.contractAddress ?? '';
       const onChainBal = oc?.balance ?? 0n;
       const walletBal = st?.balance ?? 0n;
       const diff = onChainBal - walletBal;
       if (diff === 0n) continue;
+
+      // Use token info from either stored or on-chain data
+      const tokenInfo = st?.tokenInfo ?? oc?.tokenInfo;
+      // Filter out entries without token metadata
+      if (!tokenInfo) continue;
+
+      // Format balance similar to getOnChainBalanceByAddress
+      const decimals = oc?.decimals ?? 18;
+      const balanceFormatted =
+        decimals !== null
+          ? (Number(onChainBal) / Math.pow(10, decimals)).toString()
+          : onChainBal.toString();
+      const walletBalanceFormatted =
+        decimals !== null
+          ? (Number(walletBal) / Math.pow(10, decimals)).toString()
+          : walletBal.toString();
+
       differences.push({
-        chainId,
         contractAddress,
-        walletBalance: walletBal.toString(),
-        onChainBalance: onChainBal.toString(),
-        difference: diff.toString(),
+        balance: '0x' + onChainBal.toString(16).padStart(64, '0'),
+        balanceFormatted,
+        walletBalance: '0x' + walletBal.toString(16).padStart(64, '0'),
+        walletBalanceFormatted,
+        symbol: tokenInfo.symbol ?? null,
+        name: tokenInfo.name ?? null,
+        logo: tokenInfo.image?.thumb ?? null,
         decimals: oc?.decimals ?? null,
-        symbol: oc?.symbol ?? st?.symbol ?? null,
-        name: oc?.name ?? st?.name ?? null,
-        token: st?.tokenInfo ?? null,
+        network,
+        token: {
+          id: tokenInfo.id,
+          symbol: tokenInfo.symbol ?? '',
+          name: tokenInfo.name ?? '',
+          image: tokenInfo.image,
+        },
       });
     }
 
     return {
       address: blockchainWallet.address,
       chains: blockchainWallet.chains,
-      count: differences.length,
+      totalTokens: differences.length,
+      tokensWithDifferences: differences.length,
       differences,
     };
   }

@@ -18,10 +18,10 @@ import { TransactionsService } from 'src/transactions/transactions.service';
 import { UsersService } from '../users/users.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import {
+  NormalizedBlockchainToken,
   NormalizedBlockchainWallet,
   NormalizedManualToken,
   NormalizedPortfolioPerformance,
-  NormalizedTokenContract,
   NormalizedWallet,
   PopulatedBlockchainWallet,
   PopulatedToken,
@@ -166,7 +166,7 @@ export class WalletsService {
       blockchainWallets.forEach((bw) => {
         // Check if it's populated (not just an ObjectId)
         if (typeof bw === 'object' && 'address' in bw) {
-          const normalizedTokens: NormalizedTokenContract[] = [];
+          const normalizedTokens: NormalizedBlockchainToken[] = [];
 
           if (bw.tokens && Array.isArray(bw.tokens)) {
             bw.tokens.forEach((token) => {
@@ -182,23 +182,32 @@ export class WalletsService {
                   tokenIdsForPrice.add(populatedToken.id);
                 }
                 tokensMap.set(tokenId, this.toTokenInfo(populatedToken));
+
+                // Normalize to match manual token format while preserving tokenContractId
                 normalizedTokens.push({
-                  ...token,
+                  tokenId: tokenId,
+                  balance: token.balance,
                   tokenContractId: {
-                    ...populatedContract,
+                    _id: populatedContract._id?.toString(),
+                    chainId: populatedContract.chainId,
+                    contractAddress: populatedContract.contractAddress,
+                    coinGeckoId: populatedContract.coinGeckoId,
+                    name: populatedContract.name,
+                    symbol: populatedContract.symbol,
                     tokenId: tokenId,
                   },
-                } as NormalizedTokenContract);
+                });
               } else {
                 // Not populated, just keep as is
+                const rawTokenContractId =
+                  token.tokenContractId as unknown as Types.ObjectId;
                 normalizedTokens.push({
-                  tokenContractId: {
-                    tokenId: (
-                      token.tokenContractId as Types.ObjectId
-                    ).toString(),
-                  },
+                  tokenId: rawTokenContractId.toString(),
                   balance: token.balance,
-                } as NormalizedTokenContract);
+                  tokenContractId: {
+                    _id: rawTokenContractId.toString(),
+                  },
+                });
               }
             });
           }
@@ -343,6 +352,7 @@ export class WalletsService {
       '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 
     type BalanceEntry = {
+      tokenContractId?: Types.ObjectId;
       chainId: string;
       contractAddress: string;
       balance: bigint;
@@ -369,6 +379,7 @@ export class WalletsService {
           }
         : undefined;
       onChainMap.set(`${chainId}:${contract}`, {
+        tokenContractId: b.tokenContractId,
         chainId,
         contractAddress: contract,
         balance: BigInt(raw),
@@ -422,6 +433,7 @@ export class WalletsService {
           : undefined;
       storedMap.set(`${chainId}:${contract}`, {
         chainId,
+        tokenContractId: t.tokenContractId._id,
         contractAddress: contract,
         balance: BigInt(rawStored),
         decimals: null,
@@ -438,6 +450,7 @@ export class WalletsService {
     ]);
 
     const differences = [] as Array<{
+      tokenContractId?: Types.ObjectId;
       contractAddress: string;
       balance: string;
       balanceFormatted: string;
@@ -483,6 +496,7 @@ export class WalletsService {
           : walletBal.toString();
 
       differences.push({
+        tokenContractId: oc?.tokenContractId,
         contractAddress,
         balance: '0x' + onChainBal.toString(16).padStart(64, '0'),
         balanceFormatted,
@@ -525,37 +539,40 @@ export class WalletsService {
           CHAIN_MAPPING[balance.network] || balance.network;
 
         // Find token by contract address
-        const token = await this.tokensService.findByContractAddress(
+        const tokenContract = await this.tokensService.findByContractAddress(
           coinGeckoChainId,
           balance.contractAddress,
         );
 
         // If token exists but has no image, fetch it from CoinGecko and update database
         if (
-          token &&
-          (!token.image?.thumb || !token.image?.small || !token.image?.large)
+          tokenContract &&
+          tokenContract.tokenId &&
+          (!tokenContract.tokenId.image?.thumb ||
+            !tokenContract.tokenId.image?.small ||
+            !tokenContract.tokenId.image?.large)
         ) {
           try {
             this.logger.debug(
-              `Token ${token.id} missing image, fetching from CoinGecko...`,
+              `Token ${tokenContract.tokenId.id} missing image, fetching from CoinGecko...`,
             );
 
             const coinData = await this.coingeckoService.getCoinById(
-              token.id as string,
+              tokenContract.tokenId.id,
             );
 
             if (coinData?.image) {
               // Update token in database with new image
               await this.tokensService.updateTokenImage(
-                token.id as string,
+                tokenContract.tokenId.id,
                 coinData.image,
               );
 
               // Update the token object for the response
-              token.image = coinData.image;
+              tokenContract.tokenId.image = coinData.image;
 
               this.logger.debug(
-                `Updated image for token ${token.id} in database`,
+                `Updated image for token ${tokenContract.tokenId.id} in database`,
               );
             }
           } catch (error: unknown) {
@@ -571,17 +588,18 @@ export class WalletsService {
 
             if (errorResponse?.status === 429) {
               this.logger.warn(
-                `Rate limit hit while fetching image for token ${token.id}. Continuing with existing data...`,
+                `Rate limit hit while fetching image for token ${tokenContract.tokenId.id}. Continuing with existing data...`,
               );
             } else {
               this.logger.error(
-                `Error fetching image for token ${token.id}: ${error instanceof Error ? error.message : String(error)}`,
+                `Error fetching image for token ${tokenContract.tokenId.id}: ${error instanceof Error ? error.message : String(error)}`,
               );
             }
           }
         }
 
         return {
+          tokenContractId: tokenContract?._id,
           contractAddress: balance.contractAddress,
           balance: balance.rawBalance,
           balanceFormatted: balance.balance,
@@ -590,12 +608,12 @@ export class WalletsService {
           logo: balance.logo,
           decimals: balance.decimals,
           network: coinGeckoChainId,
-          token: token
+          token: tokenContract
             ? {
-                id: token.id as string,
-                symbol: token.symbol,
-                name: token.name,
-                image: token.image,
+                id: tokenContract.tokenId.id,
+                symbol: tokenContract.tokenId.symbol,
+                name: tokenContract.tokenId.name,
+                image: tokenContract.tokenId.image,
               }
             : null,
         };
@@ -611,35 +629,37 @@ export class WalletsService {
           CHAIN_MAPPING[native.network] || native.network;
 
         // Find native token via special native address mapping
-        const token = await this.tokensService.findByContractAddress(
+        const tokenContract = await this.tokensService.findByContractAddress(
           coinGeckoChainId,
           NATIVE_CONTRACT_ADDRESS,
         );
 
         // If token exists but has no image, fetch it from CoinGecko and update database
         if (
-          token &&
-          (!token.image?.thumb || !token.image?.small || !token.image?.large)
+          tokenContract &&
+          tokenContract.tokenId &&
+          (!tokenContract.tokenId.image?.thumb ||
+            !tokenContract.tokenId.image?.small ||
+            !tokenContract.tokenId.image?.large)
         ) {
           try {
             this.logger.debug(
-              `Native token ${token.id} missing image, fetching from CoinGecko...`,
+              `Native token ${tokenContract.tokenId.id} missing image, fetching from CoinGecko...`,
             );
 
             const coinData = await this.coingeckoService.getCoinById(
-              token.id as string,
+              tokenContract.tokenId.id,
             );
 
             if (coinData?.image) {
               await this.tokensService.updateTokenImage(
-                token.id as string,
+                tokenContract.tokenId.id,
                 coinData.image,
               );
 
-              token.image = coinData.image;
-
+              tokenContract.tokenId.image = coinData.image;
               this.logger.debug(
-                `Updated image for native token ${token.id} in database`,
+                `Updated image for native token ${tokenContract.tokenId.id} in database`,
               );
             }
           } catch (error: unknown) {
@@ -655,31 +675,32 @@ export class WalletsService {
 
             if (errorResponse?.status === 429) {
               this.logger.warn(
-                `Rate limit hit while fetching image for native token ${token.id}. Continuing with existing data...`,
+                `Rate limit hit while fetching image for native token ${tokenContract.tokenId.id}. Continuing with existing data...`,
               );
             } else {
               this.logger.error(
-                `Error fetching image for native token ${token.id}: ${error instanceof Error ? error.message : String(error)}`,
+                `Error fetching image for native token ${tokenContract.tokenId.id}: ${error instanceof Error ? error.message : String(error)}`,
               );
             }
           }
         }
 
         return {
+          tokenContractId: tokenContract?._id,
           contractAddress: NATIVE_CONTRACT_ADDRESS,
           balance: native.rawBalance,
           balanceFormatted: native.balance,
-          symbol: token?.symbol ?? null,
-          name: token?.name ?? null,
-          logo: token?.image?.thumb ?? null,
+          symbol: tokenContract?.symbol ?? null,
+          name: tokenContract?.tokenId.name ?? null,
+          logo: tokenContract?.tokenId.image?.thumb ?? null,
           decimals: null,
           network: coinGeckoChainId,
-          token: token
+          token: tokenContract
             ? {
-                id: token.id as string,
-                symbol: token.symbol,
-                name: token.name,
-                image: token.image,
+                id: tokenContract.tokenId.id,
+                symbol: tokenContract.tokenId.symbol,
+                name: tokenContract.tokenId.name,
+                image: tokenContract.tokenId.image,
               }
             : null,
         };

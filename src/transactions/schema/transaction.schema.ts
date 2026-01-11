@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as Sc, Types } from 'mongoose';
 
 export type TransactionDocument = Transaction & Document;
 
@@ -13,13 +13,12 @@ export enum TransactionEventType {
   DEPOSIT = 'DEPOSIT',
   WITHDRAWAL = 'WITHDRAWAL',
 }
-
 @Schema({ timestamps: true })
 export class Transaction {
-  @Prop({ type: Types.ObjectId, ref: 'Wallet', index: true })
+  @Prop({ type: Sc.Types.ObjectId, ref: 'Wallet', index: true })
   walletId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'BlockchainWallet' })
+  @Prop({ type: Sc.Types.ObjectId, ref: 'BlockchainWallet' })
   blockchainWalletId: Types.ObjectId;
 
   @Prop({ type: String, enum: TransactionType })
@@ -34,10 +33,10 @@ export class Transaction {
   @Prop({ type: String, enum: TransactionEventType })
   event_type: TransactionEventType;
 
-  @Prop({ type: Types.ObjectId, ref: 'TokenContract' })
+  @Prop({ type: Sc.Types.ObjectId, ref: 'TokenContract' })
   tokenContractId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Token' })
+  @Prop({ type: Sc.Types.ObjectId, ref: 'Token' })
   tokenId: Types.ObjectId;
 
   // Quantity in string to avoid floating point issues

@@ -21,6 +21,14 @@ import {
 } from './schema/token-update-log.schema';
 import { Token, TokenDocument } from './schema/token.schema';
 
+// Populated type for TokenContract with tokenId populated
+export interface PopulatedTokenContract extends Omit<TokenContract, 'tokenId'> {
+  _id: Types.ObjectId;
+  tokenId: Token;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 @Injectable()
 export class TokensService {
   private readonly logger = new Logger(TokensService.name);
@@ -353,19 +361,20 @@ export class TokensService {
     return this.tokenModel.findOne({ id }).exec();
   }
 
-  async findByContractAddress(chainId: string, contractAddress: string) {
-    const contract = await this.tokenContractModel
+  async findByContractAddress(
+    chainId: string,
+    contractAddress: string,
+  ): Promise<PopulatedTokenContract | null> {
+    const contract = (await this.tokenContractModel
       .findOne({
         chainId: chainId.toLowerCase(),
         contractAddress: contractAddress.toLowerCase(),
       })
-      .exec();
+      .populate('tokenId')
+      .lean()
+      .exec()) as PopulatedTokenContract | null;
 
-    if (!contract) {
-      return null;
-    }
-
-    return this.tokenModel.findById(contract.tokenId).exec();
+    return contract;
   }
 
   async getTokenContracts(tokenId: string) {

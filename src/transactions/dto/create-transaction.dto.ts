@@ -2,12 +2,13 @@ import { Type } from 'class-transformer';
 import {
   IsDate,
   IsEnum,
-  IsMongoId,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
 } from 'class-validator';
+import { Types } from 'mongoose';
+import { ToObjectId } from 'src/common/transformers/to-object-id.transformer';
 import {
   TransactionEventType,
   TransactionType,
@@ -15,8 +16,8 @@ import {
 
 export class TransctionInfo {
   @IsOptional()
-  @IsMongoId()
-  blockchainWalletId: string;
+  @ToObjectId()
+  blockchainWalletId: Types.ObjectId;
 
   @IsString()
   @IsEnum(TransactionType)
@@ -37,12 +38,12 @@ export class TransctionInfo {
 
   @IsOptional()
   @IsNotEmpty()
-  @IsMongoId()
-  tokenContractId: string;
+  @ToObjectId()
+  tokenContractId: Types.ObjectId;
 
   @IsOptional()
-  @IsMongoId()
-  tokenId: string;
+  @ToObjectId()
+  tokenId: Types.ObjectId;
 
   @IsOptional()
   @IsString()
@@ -64,6 +65,6 @@ export class TransctionInfo {
 
 export class CreateTransactionDto extends TransctionInfo {
   @IsNotEmpty()
-  @IsMongoId()
-  walletId: string;
+  @ToObjectId()
+  walletId: Types.ObjectId;
 }

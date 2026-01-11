@@ -89,6 +89,13 @@ export class TransactionsService {
         createTransactionDto.event_type,
       );
       await blockchainWallet.save();
+
+      // Populate tokenId from tokenContract for portfolio performance calculation
+      if (!createTransactionDto.tokenId && tokenContract) {
+        createTransactionDto.tokenId = new Types.ObjectId(
+          tokenContract.tokenId,
+        );
+      }
     }
 
     if (createTransactionDto.type === TransactionType.MANUAL) {
@@ -120,9 +127,9 @@ export class TransactionsService {
   }
 
   async validateTransaction(
-    walletId: string,
-    tokenContractId: string | undefined,
-    tokenId: string | undefined,
+    walletId: Types.ObjectId,
+    tokenContractId: Types.ObjectId | undefined,
+    tokenId: Types.ObjectId | undefined,
   ) {
     const walletPromise = this.walletModel.findById(walletId).exec();
     const tokenContractPromise = tokenContractId
@@ -149,8 +156,8 @@ export class TransactionsService {
     for (const item of items) {
       const dto: CreateTransactionDto = {
         ...item,
-        walletId,
-      } as CreateTransactionDto;
+        walletId: walletId,
+      };
 
       if (dto.type !== TransactionType.SYNCED) {
         throw new BadRequestException(
@@ -185,6 +192,11 @@ export class TransactionsService {
         dto.event_type,
       );
       await blockchainWallet.save();
+
+      // Populate tokenId from tokenContract for portfolio performance calculation
+      if (!dto.tokenId && tokenContract) {
+        dto.tokenId = new Types.ObjectId(tokenContract.tokenId.toString());
+      }
 
       const created = new this.transactionModel({
         ...dto,

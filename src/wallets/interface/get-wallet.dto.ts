@@ -21,19 +21,26 @@ export interface NormalizedPortfolioPerformance {
   averageUnitCost: number;
 }
 
-export interface NormalizedTokenContract {
+export interface NormalizedBlockchainToken {
+  tokenId: string;
+  balance: string;
   tokenContractId: {
-    tokenId: string;
+    _id: string;
+    chainId?: string;
+    contractAddress?: string;
+    coinGeckoId?: string;
+    name?: string;
+    symbol?: string;
+    tokenId?: string;
     [key: string]: any;
   };
-  [key: string]: any;
 }
 
 export interface NormalizedBlockchainWallet {
   _id: Types.ObjectId;
   address: string;
   chains: string[];
-  tokens: NormalizedTokenContract[];
+  tokens: NormalizedBlockchainToken[];
   createdAt: Date;
   updatedAt: Date;
 }

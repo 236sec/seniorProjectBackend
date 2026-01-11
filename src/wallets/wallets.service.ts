@@ -461,6 +461,7 @@ export class WalletsService {
       logo: string | null;
       decimals: number | null;
       network: string;
+      currentPrice?: number;
       token: {
         id: string;
         symbol: string;
@@ -514,6 +515,26 @@ export class WalletsService {
           image: tokenInfo.image,
         },
       });
+    }
+
+    // Fetch current prices
+    const tokenIds = differences
+      .map((d) => d.token.id)
+      .filter((id) => id && id.trim() !== '');
+
+    if (tokenIds.length > 0) {
+      try {
+        const prices = await this.coingeckoService.getCurrentPrice(tokenIds);
+        for (const diff of differences) {
+          if (diff.token.id && prices[diff.token.id]) {
+            diff.currentPrice = prices[diff.token.id].usd;
+          }
+        }
+      } catch (error) {
+        this.logger.error(
+          `Error fetching prices for differences: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
 
     return {

@@ -51,6 +51,10 @@ export class TransctionInfo {
 
   @IsOptional()
   @IsNumber()
+  decimals: number;
+
+  @IsOptional()
+  @IsNumber()
   price_usd: number;
 
   @IsOptional()

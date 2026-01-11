@@ -74,3 +74,25 @@ export function isZero(hex: string): boolean {
 export function isNegetive(hex: string): boolean {
   return toBigInt(hex) < 0n;
 }
+
+/**
+ * Normalizes a hex string balance from its native decimals to 18 decimals.
+ * If current decimals < 18, it scales up.
+ * If current decimals > 18, it scales down (with precision loss).
+ */
+export function normalizeTo18Decimals(hex: string, decimals: number): string {
+  if (decimals === 18) {
+    return hex;
+  }
+
+  const value = toBigInt(hex);
+
+  if (decimals < 18) {
+    const scaleFactor = 10n ** BigInt(18 - decimals);
+    return toHex(value * scaleFactor);
+  } else {
+    // decimals > 18
+    const scaleFactor = 10n ** BigInt(decimals - 18);
+    return toHex(value / scaleFactor);
+  }
+}

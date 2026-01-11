@@ -12,6 +12,7 @@ import {
 import { CoingeckoService } from 'src/coingecko/coingecko.service';
 import {
   addHexBalances,
+  fromDecimalString,
   isNegetive,
   isZero,
   subHexBalances,
@@ -49,6 +50,17 @@ export class TransactionsService {
     private readonly coingeckoService: CoingeckoService,
   ) {}
   async create(createTransactionDto: CreateTransactionDto) {
+    if (
+      createTransactionDto.decimals !== undefined &&
+      createTransactionDto.quantity &&
+      !createTransactionDto.quantity.startsWith('0x')
+    ) {
+      createTransactionDto.quantity = fromDecimalString(
+        createTransactionDto.quantity,
+        createTransactionDto.decimals,
+      );
+    }
+
     // validate transaction
     const { wallet, tokenContract, token } = await this.validateTransaction(
       createTransactionDto.walletId,
@@ -87,6 +99,7 @@ export class TransactionsService {
         tokenContract!._id,
         createTransactionDto.quantity,
         createTransactionDto.event_type,
+        true,
       );
       await blockchainWallet.save();
 
@@ -149,11 +162,26 @@ export class TransactionsService {
 
   async createBatch(batchDto: CreateTransactionBatchDto) {
     const { walletId, items } = batchDto;
+
+    // Sort items by timestamp to ensure chronological processing
+    items.sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+
     const wallet = await this.walletModel.findById(walletId).exec();
     if (!wallet) throw new Error('Wallet not found');
     const results: TransactionDocument[] = [];
 
     for (const item of items) {
+      if (
+        item.decimals !== undefined &&
+        item.quantity &&
+        !item.quantity.startsWith('0x')
+      ) {
+        item.quantity = fromDecimalString(item.quantity, item.decimals);
+      }
+
       const dto: CreateTransactionDto = {
         ...item,
         walletId: walletId,
@@ -190,6 +218,7 @@ export class TransactionsService {
         tokenContract._id,
         dto.quantity,
         dto.event_type,
+        true,
       );
       await blockchainWallet.save();
 
@@ -232,6 +261,7 @@ export class TransactionsService {
     tokenContractId: Types.ObjectId,
     quantity: string,
     eventType: TransactionEventType,
+    isSynced: boolean = false,
   ) {
     const existingIndex = blockchainWallet.tokens.findIndex((t) =>
       t.tokenContractId.equals(tokenContractId),
@@ -260,13 +290,20 @@ export class TransactionsService {
 
         if (isZero(newBalance)) {
           blockchainWallet.tokens.splice(existingIndex, 1);
-        } else if (isNegetive(newBalance)) {
+        } else if (!isSynced && isNegetive(newBalance)) {
           throw new Error('Insufficient balance for withdrawal');
         } else {
           blockchainWallet.tokens[existingIndex].balance = newBalance;
         }
       } else {
-        throw new Error('Token not found in wallet for withdrawal');
+        if (isSynced) {
+          blockchainWallet.tokens.push({
+            tokenContractId,
+            balance: subHexBalances('0x0', deltaStr),
+          });
+        } else {
+          throw new Error('Token not found in wallet for withdrawal');
+        }
       }
     }
   }

@@ -2,6 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
+import { normalizeTo18Decimals } from 'src/common/utils/bigint-string.util';
 import {
   AlchemyApiResponse,
   AlchemyRequestBody,
@@ -498,8 +499,8 @@ export class AlchemysService {
             symbol,
             name,
             balance: this.formatTokenBalance(token.tokenBalance, decimals),
-            rawBalance: token.tokenBalance,
-            decimals: decimals !== 18 ? decimals : null,
+            rawBalance: normalizeTo18Decimals(token.tokenBalance, decimals),
+            decimals: 18,
             logo,
             network: token.network,
           };

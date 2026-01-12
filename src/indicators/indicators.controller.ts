@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { IndicatorsService } from './indicators.service';
+import { IndicatorType } from './interfaces/indicator.interface';
 
 @Controller('indicators')
 export class IndicatorsController {
@@ -12,7 +13,7 @@ export class IndicatorsController {
   @Get('/:coinId')
   getRsiIndicator(
     @Param('coinId') coinId: string,
-    @Query('indicatorType') indicatorType: 'rsi' | 'ema20' | 'sma20',
+    @Query('indicatorType') indicatorType: IndicatorType,
   ) {
     return this.indicatorsService.getIndicator(coinId, indicatorType);
   }

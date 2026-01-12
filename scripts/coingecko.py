@@ -14,7 +14,13 @@ def get_coingecko_market_chart(coin_id='bitcoin', days=365):
         data = response.json()
         
         prices = data['prices']
-        df = pd.DataFrame(prices, columns=['timestamp', 'price'])
+        volumes = data['total_volumes']
+        
+        df_prices = pd.DataFrame(prices, columns=['timestamp', 'price'])
+        df_volumes = pd.DataFrame(volumes, columns=['timestamp', 'volume'])
+        
+        # Merge on timestamp
+        df = pd.merge(df_prices, df_volumes, on='timestamp')
         df['date'] = pd.to_datetime(df['timestamp'], unit='ms')
         return df
     except Exception as e:

@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import { join } from 'path';
-import { IndicatorResponse } from './interfaces/indicator.interface';
+import {
+  IndicatorResponse,
+  IndicatorType,
+} from './interfaces/indicator.interface';
 
 @Injectable()
 export class IndicatorsService {
@@ -30,7 +33,7 @@ export class IndicatorsService {
 
   async getIndicator(
     coinId: string,
-    indicatorType: 'rsi' | 'ema20' | 'sma20',
+    indicatorType: IndicatorType,
   ): Promise<IndicatorResponse> {
     try {
       const rawData = await fs.readFile(

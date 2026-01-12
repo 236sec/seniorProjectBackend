@@ -403,6 +403,7 @@ export class WalletsService {
         : undefined;
       onChainMap.set(`${chainId}:${NATIVE_CONTRACT_ADDRESS}`, {
         chainId,
+        tokenContractId: n.tokenContractId,
         contractAddress: NATIVE_CONTRACT_ADDRESS,
         balance: BigInt(raw),
         decimals: null,

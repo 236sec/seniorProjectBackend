@@ -44,13 +44,16 @@ export class UsersService {
     return this.userModel.findByIdAndDelete(id).exec();
   }
 
-  login(loginUserDto: LoginUserDto) {
-    return this.userModel
-      .findOne({
-        email: loginUserDto.email,
-        provider: loginUserDto.provider,
-      })
-      .exec();
+  async login(loginUserDto: LoginUserDto) {
+    const existingUser = await this.userModel.exists({
+      email: loginUserDto.email,
+      provider: loginUserDto.provider,
+    });
+    if (existingUser) {
+      return existingUser;
+    }
+    const createdUser = new this.userModel(loginUserDto);
+    return createdUser.save();
   }
 
   async addWalletToUser(userId: Types.ObjectId, walletId: Types.ObjectId) {

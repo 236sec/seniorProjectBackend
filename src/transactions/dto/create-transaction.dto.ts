@@ -47,6 +47,10 @@ export class TransctionInfo {
 
   @IsOptional()
   @IsString()
+  coingeckoId: string;
+
+  @IsOptional()
+  @IsString()
   quantity: string;
 
   @IsOptional()

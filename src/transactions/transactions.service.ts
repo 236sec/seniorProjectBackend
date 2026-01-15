@@ -63,6 +63,7 @@ export class TransactionsService {
 
     // validate transaction
     const { wallet, tokenContract, token } = await this.validateTransaction(
+      createTransactionDto.coingeckoId,
       createTransactionDto.walletId,
       createTransactionDto.tokenContractId,
       createTransactionDto.tokenId,
@@ -115,9 +116,16 @@ export class TransactionsService {
       if (createTransactionDto.tokenId && !token) {
         throw new BadRequestException('Token not found');
       }
+      if (!token) {
+        throw new BadRequestException('Token not found');
+      }
+      // Populate tokenId from resolved token
+      if (!createTransactionDto.tokenId && token) {
+        createTransactionDto.tokenId = new Types.ObjectId(token._id);
+      }
       this.updateManualWalletBalance(
         wallet,
-        token!._id,
+        token._id,
         createTransactionDto.quantity,
         createTransactionDto.event_type,
       );
@@ -140,16 +148,24 @@ export class TransactionsService {
   }
 
   async validateTransaction(
+    coingeckoId: string,
     walletId: Types.ObjectId,
     tokenContractId: Types.ObjectId | undefined,
     tokenId: Types.ObjectId | undefined,
   ) {
+    let tokenIdLocal = tokenId;
+    if (!tokenIdLocal && coingeckoId) {
+      const tokenData = await this.tokenModel.find({ id: coingeckoId }).exec();
+      if (tokenData && tokenData.length > 0) {
+        tokenIdLocal = tokenData[0]._id;
+      }
+    }
     const walletPromise = this.walletModel.findById(walletId).exec();
     const tokenContractPromise = tokenContractId
       ? this.tokenContractModel.findById(tokenContractId).exec()
       : Promise.resolve(null);
-    const tokenIdPromise = tokenId
-      ? this.tokenModel.findById(new Types.ObjectId(tokenId)).exec()
+    const tokenIdPromise = tokenIdLocal
+      ? this.tokenModel.findById(new Types.ObjectId(tokenIdLocal)).exec()
       : Promise.resolve(null);
 
     const [wallet, tokenContract, token] = await Promise.all([
@@ -187,10 +203,21 @@ export class TransactionsService {
         walletId: walletId,
       };
 
-      if (dto.type !== TransactionType.SYNCED) {
-        throw new BadRequestException(
-          'Batch creation only supports SYNCED transactions',
-        );
+      if (dto.type === TransactionType.MANUAL) {
+        if (!dto.tokenId && dto.coingeckoId) {
+          const tokenData = await this.tokenModel
+            .findOne({ id: dto.coingeckoId })
+            .exec();
+          if (tokenData) {
+            dto.tokenId = new Types.ObjectId(tokenData._id);
+          } else {
+            throw new Error(
+              `Token not found for coingeckoId: ${dto.coingeckoId}`,
+            );
+          }
+        }
+        await this.create(dto);
+        continue;
       }
 
       // check blockchain wallet exists

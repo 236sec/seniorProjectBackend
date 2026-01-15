@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum } from 'class-validator';
+import { IsEmail, IsEnum, IsString } from 'class-validator';
 
 export class LoginUserDto {
   @IsEmail()
@@ -6,4 +6,10 @@ export class LoginUserDto {
 
   @IsEnum(['google', 'github'])
   readonly provider: string;
+
+  @IsString()
+  readonly firstName: string;
+
+  @IsString()
+  readonly lastName: string;
 }

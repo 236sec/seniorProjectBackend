@@ -80,7 +80,9 @@ export class WalletsService {
     return this.walletModel.find().exec();
   }
 
-  async findOne(id: Types.ObjectId): Promise<WalletWithTokens | null> {
+  async findOne(
+    id: Types.ObjectId,
+  ): Promise<WalletWithTokens | NotFoundException | null> {
     const wallet = await this.walletModel
       .findById(id)
       .populate({
@@ -97,7 +99,7 @@ export class WalletsService {
       .exec();
 
     if (!wallet) {
-      return null;
+      return new NotFoundException('Wallet does not exist');
     }
 
     // Normalize the response: extract tokens and replace with IDs

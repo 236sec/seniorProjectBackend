@@ -14,10 +14,10 @@ export class User {
   @Prop({ required: true, index: true })
   provider: string;
 
-  @Prop({ required: true })
+  @Prop()
   firstName: string;
 
-  @Prop({ required: true })
+  @Prop()
   lastName: string;
 
   @Prop({ type: [Types.ObjectId], ref: 'Wallet' })

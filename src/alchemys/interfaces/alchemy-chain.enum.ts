@@ -15,6 +15,7 @@ export enum AlchemyChain {
   OP_SEPOLIA = 'opt-sepolia',
   POLYGON_POS_MAINNET = 'polygon-mainnet',
   POLYGON_AMOY = 'polygon-amoy',
+  MATIC_MAINNET = 'matic-mainnet',
   ARBITRUM_MAINNET = 'arb-mainnet',
   ARBITRUM_SEPOLIA = 'arb-sepolia',
   BERACHAIN_MAINNET = 'berachain-mainnet',
@@ -31,4 +32,7 @@ export enum AlchemyChain {
   CELO_SEPOLIA = 'celo-sepolia',
   SONEIUM_MAINNET = 'soneium-mainnet',
   SONEIUM_MINATO = 'soneium-minato',
+  ZKSYNC_MAINNET = 'zksync-mainnet',
+  LINEA_MAINNET = 'linea-mainnet',
+  INK_MAINNET = 'ink-mainnet',
 }

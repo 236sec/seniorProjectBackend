@@ -152,6 +152,11 @@ export const CHAINS = [
   'base-sepolia',
   'avax-mainnet',
   'avax-fuji',
+  'zksync-mainnet',
+  'worldchain-mainnet',
+  'berachain-mainnet',
+  'linea-mainnet',
+  'ink-mainnet',
 ] as const;
 
 export type SupportedChain = (typeof CHAINS)[number];

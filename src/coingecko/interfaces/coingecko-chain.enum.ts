@@ -6,4 +6,8 @@ export enum CoingeckoChain {
   OPTIMISM = 'optimistic-ethereum',
   BLAST = 'blast',
   ZKSYNC = 'zksync',
+  WORLDCHAIN = 'world-chain',
+  BERACHAIN = 'berachain',
+  LINEA = 'linea',
+  INK = 'ink',
 }

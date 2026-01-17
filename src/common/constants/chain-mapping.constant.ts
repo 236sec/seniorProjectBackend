@@ -8,7 +8,13 @@ import { CoingeckoChain } from 'src/coingecko/interfaces/coingecko-chain.enum';
 export const CHAIN_MAPPING: Record<string, CoingeckoChain> = {
   [AlchemyChain.ETHEREUM_MAINNET]: CoingeckoChain.ETHEREUM,
   [AlchemyChain.POLYGON_POS_MAINNET]: CoingeckoChain.POLYGON,
+  [AlchemyChain.MATIC_MAINNET]: CoingeckoChain.POLYGON,
   [AlchemyChain.ARBITRUM_MAINNET]: CoingeckoChain.ARBITRUM,
   [AlchemyChain.BASE_MAINNET]: CoingeckoChain.BASE,
   [AlchemyChain.OP_MAINNET]: CoingeckoChain.OPTIMISM,
+  [AlchemyChain.ZKSYNC_MAINNET]: CoingeckoChain.ZKSYNC,
+  [AlchemyChain.WORLD_CHAIN_MAINNET]: CoingeckoChain.WORLDCHAIN,
+  [AlchemyChain.BERACHAIN_MAINNET]: CoingeckoChain.BERACHAIN,
+  [AlchemyChain.LINEA_MAINNET]: CoingeckoChain.LINEA,
+  [AlchemyChain.INK_MAINNET]: CoingeckoChain.INK,
 };

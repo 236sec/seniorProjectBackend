@@ -440,10 +440,10 @@ export class TransactionsService {
   }
 
   async findByWalletId(walletId: Types.ObjectId) {
-    // sort by timestamp descending
+    // sort by createdAt descending
     return this.transactionModel
       .find({ walletId: walletId })
-      .sort({ timestamp: -1 })
+      .sort({ createdAt: -1 })
       .populate('tokenId')
       .exec();
   }
@@ -461,7 +461,7 @@ export class TransactionsService {
     const [data, total] = await Promise.all([
       this.transactionModel
         .find({ walletId: walletId })
-        .sort({ timestamp: -1 })
+        .sort({ createdAt: -1 })
         .populate('tokenId')
         .skip(finalOffset)
         .limit(finalLimit)
@@ -529,7 +529,7 @@ export class TransactionsService {
 
       // Sort transactions by date for cost basis calculation
       tokenTransactions.sort(
-        (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+        (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
       );
 
       // Calculate totals from transactions

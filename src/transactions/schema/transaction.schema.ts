@@ -51,6 +51,10 @@ export class Transaction {
 
   @Prop({ type: Date })
   timestamp: Date;
+
+  // Mongoose timestamps (auto-generated when timestamps: true)
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);

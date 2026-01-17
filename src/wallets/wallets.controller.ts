@@ -51,6 +51,17 @@ export class WalletsController {
     return this.walletsService.getOnChainBalanceByAddress(address, chains);
   }
 
+  @Get(':walletId/blockchainWallets/address/:address/diff')
+  getDiffBalanceByAddress(
+    @Param('walletId', ParseObjectIdPipe) walletId: Types.ObjectId,
+    @Param('address') address: string,
+  ) {
+    return this.walletsService.getDifferentBalanceInBlockchainWalletsByAddress(
+      walletId,
+      address,
+    );
+  }
+
   @Get('blockchainWallets/:blockchainWalletId/diff')
   getDiffBalanceBlockchainWallet(
     @Param('blockchainWalletId', ParseObjectIdPipe)

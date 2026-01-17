@@ -22,6 +22,9 @@ export const TokenBalanceSchema = SchemaFactory.createForClass(TokenBalance);
 
 @Schema({ timestamps: true })
 export class BlockchainWallet {
+  @Prop({ type: Types.ObjectId, ref: 'Wallet', required: true, index: true })
+  walletId: Types.ObjectId;
+
   @Prop({ required: true })
   address: string;
 

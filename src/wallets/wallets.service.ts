@@ -302,6 +302,7 @@ export class WalletsService {
 
     if (!blockchainWallet) {
       blockchainWallet = new this.blockchainWalletModel({
+        walletId,
         address,
         chains: Array.from(new Set(chains)),
         tokens: [],
@@ -324,6 +325,28 @@ export class WalletsService {
       .exec();
 
     return blockchainWallet;
+  }
+
+  async getBlockchainWalletsByWalletIdAndAddress(
+    walletId: Types.ObjectId,
+    address: string,
+  ) {
+    return this.blockchainWalletModel.findOne({ walletId, address }).exec();
+  }
+
+  async getDifferentBalanceInBlockchainWalletsByAddress(
+    walletId: Types.ObjectId,
+    address: string,
+  ) {
+    const blockchainWallet =
+      await this.getBlockchainWalletsByWalletIdAndAddress(walletId, address);
+    if (!blockchainWallet) {
+      throw new NotFoundException('Blockchain wallet does not exist');
+    }
+    const result = await this.getDifferentBalanceInBlockchainWallets(
+      blockchainWallet._id,
+    );
+    return result;
   }
 
   async getDifferentBalanceInBlockchainWallets(

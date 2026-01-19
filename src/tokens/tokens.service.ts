@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CoingeckoService } from 'src/coingecko/coingecko.service';
@@ -357,8 +362,24 @@ export class TokensService {
     };
   }
 
-  findOne(id: string) {
-    return this.tokenModel.findOne({ id }).exec();
+  findOne(id: Types.ObjectId) {
+    return this.tokenModel.findOne({ _id: id }).exec();
+  }
+
+  findOneByCoinGeckoId(coinGeckoId: string) {
+    return this.tokenModel.findOne({ id: coinGeckoId }).exec();
+  }
+
+  fineToken(tokenId: Types.ObjectId, coingeckoId: string) {
+    if (tokenId) {
+      return this.findOne(tokenId);
+    }
+    if (coingeckoId) {
+      return this.findOneByCoinGeckoId(coingeckoId);
+    }
+    throw new BadRequestException(
+      'Either tokenId or coingeckoId must be provided',
+    );
   }
 
   async findByContractAddress(
@@ -913,8 +934,8 @@ export class TokensService {
     }
   }
 
-  remove(id: string) {
-    return this.tokenModel.findOneAndDelete({ id }).exec();
+  remove(id: Types.ObjectId) {
+    return this.tokenModel.findOneAndDelete({ _id: id }).exec();
   }
 
   async addTokenById(coinGeckoId: string) {

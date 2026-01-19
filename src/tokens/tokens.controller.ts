@@ -1,4 +1,6 @@
 import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
+import { ParseObjectIdPipe } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 import {
   QueryTokenHistoricalPricesDto,
   QueryTokensDto,
@@ -63,12 +65,12 @@ export class TokensController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
     return this.tokensService.findOne(id);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
     return this.tokensService.remove(id);
   }
 

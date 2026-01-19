@@ -15,6 +15,7 @@ import { BlockchainWalletsModule } from './blockchain-wallets/blockchain-wallets
 import { CoingeckoModule } from './coingecko/coingecko.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { IndicatorsModule } from './indicators/indicators.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { TokensModule } from './tokens/tokens.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { UsersModule } from './users/users.module';
@@ -81,6 +82,7 @@ import { WalletsModule } from './wallets/wallets.module';
     CoingeckoModule,
     TransactionsModule,
     IndicatorsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

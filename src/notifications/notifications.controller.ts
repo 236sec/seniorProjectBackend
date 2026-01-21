@@ -33,8 +33,8 @@ export class NotificationsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.notificationsService.findOne(+id);
+  findOne(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
+    return this.notificationsService.findOne(id);
   }
 
   @Patch(':id')

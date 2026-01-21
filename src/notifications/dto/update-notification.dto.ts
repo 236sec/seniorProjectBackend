@@ -1,4 +1,16 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateNotificationDto } from './create-notification.dto';
+import { IsBoolean, IsEnum, IsNumber, IsOptional } from 'class-validator';
+import { AlertCondition } from '../schema/notification.schema';
 
-export class UpdateNotificationDto extends PartialType(CreateNotificationDto) {}
+export class UpdateNotificationDto {
+  @IsOptional()
+  @IsNumber()
+  targetPrice: number;
+
+  @IsOptional()
+  @IsEnum(AlertCondition)
+  condition: AlertCondition;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive: boolean;
+}

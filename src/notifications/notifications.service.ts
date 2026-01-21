@@ -218,11 +218,11 @@ export class NotificationsService {
   }
 
   findAll() {
-    return `This action returns all notifications`;
+    return this.userAlertModel.find().populate(['user', 'token']).exec();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} notification`;
+  findOne(id: Types.ObjectId) {
+    return this.userAlertModel.findById(id).populate(['user', 'token']).exec();
   }
 
   update(id: Types.ObjectId, updateNotificationDto: UpdateNotificationDto) {

@@ -36,7 +36,7 @@ export interface PopulatedTokenContract extends Omit<TokenContract, 'tokenId'> {
 
 @Injectable()
 export class TokensService {
-  private readonly logger = new Logger(TokensService.name);
+  private readonly logger: Logger;
   private readonly MIN_UPDATE_INTERVAL_MS = 10 * 60 * 1000;
 
   constructor(
@@ -48,7 +48,9 @@ export class TokensService {
     @InjectModel(TokenHistoricalPrice.name)
     private tokenHistoricalPriceModel: Model<TokenHistoricalPriceDocument>,
     private readonly coingeckoService: CoingeckoService,
-  ) {}
+  ) {
+    this.logger = new Logger(TokensService.name);
+  }
 
   async updateDatabaseFromCoingecko(
     startPage: number = 1,

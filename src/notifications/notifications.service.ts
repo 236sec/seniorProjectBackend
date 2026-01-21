@@ -16,7 +16,7 @@ import { UserAlert, UserAlertDocument } from './schema/notification.schema';
 
 @Injectable()
 export class NotificationsService {
-  private readonly logger = new Logger(NotificationsService.name);
+  private readonly logger: Logger;
   private readonly fromEmail: string | undefined;
 
   constructor(
@@ -28,6 +28,7 @@ export class NotificationsService {
     private readonly mailerService: MailerService,
     private readonly configService: ConfigService,
   ) {
+    this.logger = new Logger(NotificationsService.name);
     this.fromEmail = this.configService.get<string>('SMTP_FROM');
     if (!this.fromEmail) {
       this.logger.warn('SMTP_FROM not configured');

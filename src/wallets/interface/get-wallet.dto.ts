@@ -85,6 +85,8 @@ export type PopulatedToken = Token & { _id: Types.ObjectId };
 export type PopulatedTokenContract = Omit<TokenContract, 'tokenId'> & {
   _id: Types.ObjectId;
   tokenId: PopulatedToken;
+  name: string;
+  symbol: string;
   contractAddress: string;
   chainId: string;
 };

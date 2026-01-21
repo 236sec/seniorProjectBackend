@@ -240,6 +240,11 @@ export class TransactionsService {
         .exec();
       if (!tokenContract) throw new Error('Token contract not found');
 
+      // Ensure blockchain wallet has walletId set
+      if (!blockchainWallet.walletId) {
+        blockchainWallet.walletId = wallet._id;
+      }
+
       this.updateWalletBalance(
         blockchainWallet,
         tokenContract._id,

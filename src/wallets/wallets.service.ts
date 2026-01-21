@@ -409,8 +409,8 @@ export class WalletsService {
         contractAddress: contract,
         balance: BigInt(raw),
         decimals: typeof b.decimals === 'number' ? b.decimals : null,
-        symbol: b.symbol ?? null,
-        name: b.name ?? null,
+        symbol: b.token?.symbol ?? null,
+        name: b.token?.name ?? null,
         tokenInfo,
       });
     }
@@ -432,8 +432,8 @@ export class WalletsService {
         contractAddress: NATIVE_CONTRACT_ADDRESS,
         balance: BigInt(raw),
         decimals: null,
-        symbol: n.symbol ?? null,
-        name: n.name ?? null,
+        symbol: n.token?.symbol ?? null,
+        name: n.token?.name ?? null,
         tokenInfo,
       });
     }
@@ -446,7 +446,7 @@ export class WalletsService {
         contractAddress: string;
         symbol?: string;
         name?: string;
-        tokenId?: PopulatedToken | Types.ObjectId;
+        tokenId?: PopulatedToken;
       };
       if (!tc || typeof tc !== 'object') continue;
       const chainId = tc.chainId;
@@ -455,7 +455,7 @@ export class WalletsService {
       const rawStored = String(t.balance ?? '0');
       const tokenInfo =
         tc.tokenId && typeof tc.tokenId === 'object'
-          ? this.toTokenInfo(tc.tokenId as PopulatedToken)
+          ? this.toTokenInfo(tc.tokenId)
           : undefined;
       storedMap.set(`${chainId}:${contract}`, {
         chainId,
@@ -463,8 +463,8 @@ export class WalletsService {
         contractAddress: contract,
         balance: BigInt(rawStored),
         decimals: null,
-        symbol: tc.symbol ?? undefined,
-        name: tc.name ?? undefined,
+        symbol: tc.tokenId?.symbol ?? undefined,
+        name: tc.tokenId?.name ?? undefined,
         tokenInfo,
       });
     }
@@ -650,9 +650,6 @@ export class WalletsService {
           contractAddress: balance.contractAddress,
           balance: balance.rawBalance,
           balanceFormatted: balance.balance,
-          symbol: balance.symbol,
-          name: balance.name,
-          logo: balance.logo,
           decimals: balance.decimals,
           network: coinGeckoChainId,
           token: tokenContract
@@ -737,9 +734,6 @@ export class WalletsService {
           contractAddress: NATIVE_CONTRACT_ADDRESS,
           balance: native.rawBalance,
           balanceFormatted: native.balance,
-          symbol: tokenContract?.symbol ?? null,
-          name: tokenContract?.tokenId.name ?? null,
-          logo: tokenContract?.tokenId.image?.thumb ?? null,
           decimals: null,
           network: coinGeckoChainId,
           token: tokenContract

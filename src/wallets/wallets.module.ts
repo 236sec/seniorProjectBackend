@@ -5,6 +5,7 @@ import {
   BlockchainWallet,
   BlockchainWalletSchema,
 } from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
+import { BlockchainModule } from 'src/blockchain/blockchain.module';
 import { CoingeckoModule } from 'src/coingecko/coingecko.module';
 import { TokensModule } from 'src/tokens/tokens.module';
 import { TransactionsModule } from 'src/transactions/transactions.module';
@@ -24,6 +25,7 @@ import { WalletsService } from './wallets.service';
     TokensModule,
     CoingeckoModule,
     TransactionsModule,
+    BlockchainModule,
   ],
   controllers: [WalletsController],
   providers: [WalletsService],

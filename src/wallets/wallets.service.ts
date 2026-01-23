@@ -11,6 +11,8 @@ import {
   BlockchainWallet,
   BlockchainWalletDocument,
 } from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
+import { BlockchainService } from 'src/blockchain/blockchain.service';
+import { SupportedPRC } from 'src/blockchain/enum/supported-prc.enum';
 import { CoingeckoService } from 'src/coingecko/coingecko.service';
 import { CHAIN_MAPPING } from 'src/common/constants/chain-mapping.constant';
 import { TokensService } from 'src/tokens/tokens.service';
@@ -46,6 +48,7 @@ export class WalletsService {
     private readonly tokensService: TokensService,
     private readonly coingeckoService: CoingeckoService,
     private readonly transactionsService: TransactionsService,
+    private readonly blockchainService: BlockchainService,
   ) {}
 
   async create(userId: Types.ObjectId, createWalletDto: CreateWalletDto) {
@@ -276,8 +279,12 @@ export class WalletsService {
     return this.walletModel.find({ userId }).exec();
   }
 
-  remove(id: Types.ObjectId) {
-    return this.walletModel.findByIdAndDelete(id).exec();
+  async remove(id: Types.ObjectId) {
+    const wallet = await this.walletModel.findByIdAndDelete(id).exec();
+    if (wallet) {
+      await this.usersService.removeWalletFromUser(wallet.userId, id);
+    }
+    return wallet;
   }
 
   update(id: Types.ObjectId, updateWalletDto: Partial<Wallet>) {
@@ -573,10 +580,82 @@ export class WalletsService {
   }
 
   async getOnChainBalanceByAddress(address: string, chain: string[]) {
-    const balancesData = await this.alchemysService.getTokenBalances(
-      chain,
-      address,
+    const alchemyChains = chain.filter(
+      (c) => c !== SupportedPRC.BNB.toString(),
     );
+
+    // Only call Alchemy service if there are Alchemy-supported chains
+    const balancesData =
+      alchemyChains.length > 0
+        ? await this.alchemysService.getTokenBalances(alchemyChains, address)
+        : { address, chains: [], nativeBalances: [], tokenBalances: [] };
+
+    const bnbChain = chain.find((c) => c === SupportedPRC.BNB.toString());
+    if (bnbChain) {
+      const bnbBalances = await this.blockchainService.getBalanceBatch(
+        address,
+        [SupportedPRC.BNB],
+      );
+      const NATIVE_CONTRACT_ADDRESS =
+        '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+
+      // Enrich BNB token balances with database metadata
+      const bnbTokenBalances = await Promise.all(
+        bnbBalances
+          .filter((b) => b.contractAddress !== NATIVE_CONTRACT_ADDRESS)
+          .map(async (balance) => {
+            const coinGeckoChainId =
+              CHAIN_MAPPING[balance.network] || balance.network;
+            const tokenContract =
+              await this.tokensService.findByContractAddress(
+                coinGeckoChainId,
+                balance.contractAddress,
+              );
+
+            return {
+              contractAddress: balance.contractAddress,
+              balance: balance.balance,
+              rawBalance: balance.rawBalance,
+              decimals: balance.decimals,
+              network: balance.network,
+              // Only include if token exists in database
+              ...(tokenContract && {
+                tokenContractId: tokenContract._id,
+              }),
+            };
+          }),
+      );
+
+      // Enrich BNB native balances
+      const bnbNativeBalances = await Promise.all(
+        bnbBalances
+          .filter((b) => b.contractAddress === NATIVE_CONTRACT_ADDRESS)
+          .map(async (balance) => {
+            const coinGeckoChainId =
+              CHAIN_MAPPING[balance.network] || balance.network;
+            const tokenContract =
+              await this.tokensService.findByContractAddress(
+                coinGeckoChainId,
+                NATIVE_CONTRACT_ADDRESS,
+              );
+
+            return {
+              contractAddress: NATIVE_CONTRACT_ADDRESS,
+              balance: balance.balance,
+              rawBalance: balance.rawBalance,
+              decimals: balance.decimals,
+              network: balance.network,
+              // Only include if token exists in database
+              ...(tokenContract && {
+                tokenContractId: tokenContract._id,
+              }),
+            };
+          }),
+      );
+
+      balancesData.nativeBalances.push(...bnbNativeBalances);
+      balancesData.tokenBalances.push(...bnbTokenBalances);
+    }
 
     // Enrich with token metadata from our database
     const enrichedBalances = await Promise.all(
@@ -591,7 +670,7 @@ export class WalletsService {
           balance.contractAddress,
         );
 
-        // If token exists but has no image, fetch it from CoinGecko and update database
+        // Only fetch image from CoinGecko if token exists in our database
         if (
           tokenContract &&
           tokenContract.tokenId &&
@@ -678,7 +757,7 @@ export class WalletsService {
           NATIVE_CONTRACT_ADDRESS,
         );
 
-        // If token exists but has no image, fetch it from CoinGecko and update database
+        // Only fetch image from CoinGecko if token exists in our database
         if (
           tokenContract &&
           tokenContract.tokenId &&

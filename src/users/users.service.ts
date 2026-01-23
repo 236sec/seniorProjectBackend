@@ -65,4 +65,14 @@ export class UsersService {
       )
       .exec();
   }
+
+  async removeWalletFromUser(userId: Types.ObjectId, walletId: Types.ObjectId) {
+    return this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { $pull: { wallets: walletId } },
+        { new: true },
+      )
+      .exec();
+  }
 }

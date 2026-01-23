@@ -22,6 +22,9 @@ export class TokenContract {
 
   @Prop()
   name?: string;
+
+  @Prop()
+  decimals?: number;
 }
 
 // Create compound index for efficient lookups

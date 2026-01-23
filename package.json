@@ -41,6 +41,7 @@
     "cache-manager": "^7.2.7",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "ethers": "^6.16.0",
     "mongoose": "^8.19.1",
     "nodemailer": "^7.0.12",
     "pug": "^3.0.3",

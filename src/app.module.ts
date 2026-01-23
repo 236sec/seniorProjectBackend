@@ -12,8 +12,10 @@ import { AlchemysModule } from './alchemys/alchemys.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BlockchainWalletsModule } from './blockchain-wallets/blockchain-wallets.module';
+import { BlockchainModule } from './blockchain/blockchain.module';
 import { CoingeckoModule } from './coingecko/coingecko.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import rpcConfig from './config/rpc.config';
 import { IndicatorsModule } from './indicators/indicators.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TokensModule } from './tokens/tokens.module';
@@ -25,6 +27,7 @@ import { WalletsModule } from './wallets/wallets.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [rpcConfig],
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
@@ -83,6 +86,7 @@ import { WalletsModule } from './wallets/wallets.module';
     TransactionsModule,
     IndicatorsModule,
     NotificationsModule,
+    BlockchainModule,
   ],
   controllers: [AppController],
   providers: [AppService],

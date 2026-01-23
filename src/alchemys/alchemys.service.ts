@@ -402,6 +402,10 @@ export class AlchemysService {
         );
       }
 
+      if (!chains || chains.length === 0) {
+        throw new Error('At least one chain must be specified');
+      }
+
       // Validate chains
       const invalidChains = chains.filter(
         (chain) => !CHAINS.includes(chain as SupportedChain),
@@ -481,18 +485,18 @@ export class AlchemysService {
             metadata && typeof metadata.decimals === 'number'
               ? metadata.decimals
               : 18;
-          const symbol: string =
+          const symbol: string | undefined =
             metadata && typeof metadata.symbol === 'string'
               ? metadata.symbol
-              : 'UNKNOWN';
-          const name: string =
+              : undefined;
+          const name: string | undefined =
             metadata && typeof metadata.name === 'string'
               ? metadata.name
-              : 'Unknown Token';
-          const logo: string | null =
+              : undefined;
+          const logo: string | null | undefined =
             metadata && typeof metadata.logo === 'string'
               ? metadata.logo
-              : null;
+              : undefined;
 
           return {
             contractAddress: token.tokenAddress as string,
@@ -503,6 +507,15 @@ export class AlchemysService {
             decimals: 18,
             logo,
             network: token.network,
+          } as {
+            contractAddress: string;
+            symbol?: string;
+            name?: string;
+            balance: string;
+            rawBalance: string;
+            decimals: number;
+            logo?: string | null;
+            network: string;
           };
         });
 

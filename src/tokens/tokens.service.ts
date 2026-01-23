@@ -11,6 +11,7 @@ import {
   CoinDetailData,
   CoingeckoListCoinsWithPlatformsResponse,
 } from 'src/coingecko/interfaces/coingecko-api.interface';
+import { CoingeckoChain } from 'src/coingecko/interfaces/coingecko-chain.enum';
 import {
   TokenContract,
   TokenContractDocument,
@@ -1228,5 +1229,9 @@ export class TokensService {
     }
 
     return results;
+  }
+
+  findTokenContractByChain(chainId: CoingeckoChain) {
+    return this.tokenContractModel.find({ chainId: chainId }).exec();
   }
 }

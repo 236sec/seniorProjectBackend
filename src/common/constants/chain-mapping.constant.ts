@@ -1,4 +1,5 @@
 import { AlchemyChain } from 'src/alchemys/interfaces/alchemy-chain.enum';
+import { SupportedPRC } from 'src/blockchain/enum/supported-prc.enum';
 import { CoingeckoChain } from 'src/coingecko/interfaces/coingecko-chain.enum';
 
 /**
@@ -17,4 +18,13 @@ export const CHAIN_MAPPING: Record<string, CoingeckoChain> = {
   [AlchemyChain.BERACHAIN_MAINNET]: CoingeckoChain.BERACHAIN,
   [AlchemyChain.LINEA_MAINNET]: CoingeckoChain.LINEA,
   [AlchemyChain.INK_MAINNET]: CoingeckoChain.INK,
+};
+
+export const MappingSupportedRPCToCoingeckoChain: Record<
+  SupportedPRC,
+  CoingeckoChain
+> = {
+  [SupportedPRC.ETH]: CoingeckoChain.ETHEREUM,
+  [SupportedPRC.BNB]: CoingeckoChain.BINANCE_SMART_CHAIN,
+  [SupportedPRC.BASE]: CoingeckoChain.BASE,
 };

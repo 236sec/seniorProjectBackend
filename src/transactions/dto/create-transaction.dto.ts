@@ -17,7 +17,7 @@ import {
 export class TransctionInfo {
   @IsOptional()
   @ToObjectId()
-  blockchainWalletId: Types.ObjectId;
+  blockchainWalletId?: Types.ObjectId;
 
   @IsString()
   @IsEnum(TransactionType)
@@ -25,45 +25,45 @@ export class TransctionInfo {
 
   @IsOptional()
   @IsString()
-  from: string;
+  from?: string;
 
   @IsOptional()
   @IsString()
-  to: string;
+  to?: string;
 
   @IsOptional()
   @IsString()
   @IsEnum(TransactionEventType)
-  event_type: TransactionEventType;
+  event_type?: TransactionEventType;
 
   @IsOptional()
   @IsNotEmpty()
   @ToObjectId()
-  tokenContractId: Types.ObjectId;
+  tokenContractId?: Types.ObjectId;
 
   @IsOptional()
   @ToObjectId()
-  tokenId: Types.ObjectId;
+  tokenId?: Types.ObjectId;
 
   @IsOptional()
   @IsString()
-  coingeckoId: string;
+  coingeckoId?: string;
 
   @IsOptional()
   @IsString()
-  quantity: string;
+  quantity?: string;
 
   @IsOptional()
   @IsNumber()
-  decimals: number;
+  decimals?: number;
 
   @IsOptional()
   @IsNumber()
-  price_usd: number;
+  price_usd?: number;
 
   @IsOptional()
   @IsNumber()
-  cashflow_usd: number;
+  cashflow_usd?: number;
 
   @IsNotEmpty()
   @IsDate()

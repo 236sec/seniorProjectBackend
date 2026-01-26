@@ -98,8 +98,8 @@ export class TransactionsService {
       this.updateWalletBalance(
         blockchainWallet,
         tokenContract!._id,
-        createTransactionDto.quantity,
-        createTransactionDto.event_type,
+        createTransactionDto.quantity!,
+        createTransactionDto.event_type!,
         true,
       );
       await blockchainWallet.save();
@@ -126,8 +126,8 @@ export class TransactionsService {
       this.updateManualWalletBalance(
         wallet,
         token._id,
-        createTransactionDto.quantity,
-        createTransactionDto.event_type,
+        createTransactionDto.quantity!,
+        createTransactionDto.event_type!,
       );
       await wallet.save();
     }
@@ -148,7 +148,7 @@ export class TransactionsService {
   }
 
   async validateTransaction(
-    coingeckoId: string,
+    coingeckoId: string | undefined,
     walletId: Types.ObjectId,
     tokenContractId: Types.ObjectId | undefined,
     tokenId: Types.ObjectId | undefined,
@@ -248,8 +248,8 @@ export class TransactionsService {
       this.updateWalletBalance(
         blockchainWallet,
         tokenContract._id,
-        dto.quantity,
-        dto.event_type,
+        dto.quantity!,
+        dto.event_type!,
         true,
       );
       await blockchainWallet.save();

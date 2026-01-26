@@ -13,7 +13,7 @@ import { CoingeckoService } from 'src/coingecko/coingecko.service';
 import {
   addHexBalances,
   fromDecimalString,
-  isNegetive,
+  isNegative,
   isZero,
   subHexBalances,
   toBigInt,
@@ -322,7 +322,7 @@ export class TransactionsService {
 
         if (isZero(newBalance)) {
           blockchainWallet.tokens.splice(existingIndex, 1);
-        } else if (!isSynced && isNegetive(newBalance)) {
+        } else if (!isSynced && isNegative(newBalance)) {
           throw new Error('Insufficient balance for withdrawal');
         } else {
           blockchainWallet.tokens[existingIndex].balance = newBalance;
@@ -374,7 +374,7 @@ export class TransactionsService {
 
         if (isZero(newBalance)) {
           wallet.manualTokens.splice(existingIndex, 1);
-        } else if (isNegetive(newBalance)) {
+        } else if (isNegative(newBalance)) {
           throw new Error('Insufficient balance for withdrawal');
         } else {
           wallet.manualTokens[existingIndex].balance = newBalance;

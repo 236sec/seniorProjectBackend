@@ -71,7 +71,7 @@ export function isZero(hex: string): boolean {
 /**
  * Checks if the hex string represents a negative number.
  */
-export function isNegetive(hex: string): boolean {
+export function isNegative(hex: string): boolean {
   return toBigInt(hex) < 0n;
 }
 

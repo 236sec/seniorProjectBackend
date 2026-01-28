@@ -577,10 +577,11 @@ export class WalletsService {
 
       differences.push({
         contractAddress: '', // No contract address for bank wallet items usually
-        balance: '0', // Raw balance not applicable/available without decimals
-        balanceFormatted: liveBal.toString(),
-        walletBalance: storedRaw,
-        walletBalanceFormatted: storedBal.toString(),
+        balance:
+          '0x' + this.parseToRaw(liveBal, 18).toString(16).padStart(64, '0'),
+        balanceFormatted: this.formatDecimal(liveBal),
+        walletBalance: '0x' + BigInt(storedRaw).toString(16).padStart(64, '0'),
+        walletBalanceFormatted: this.formatDecimal(storedBal),
         symbol: symbol,
         name: name,
         logo: image?.thumb ?? null,
@@ -793,11 +794,11 @@ export class WalletsService {
       const decimals = oc?.decimals ?? 18;
       const balanceFormatted =
         decimals !== null
-          ? (Number(onChainBal) / Math.pow(10, decimals)).toString()
+          ? this.formatDecimal(Number(onChainBal) / Math.pow(10, decimals))
           : onChainBal.toString();
       const walletBalanceFormatted =
         decimals !== null
-          ? (Number(walletBal) / Math.pow(10, decimals)).toString()
+          ? this.formatDecimal(Number(walletBal) / Math.pow(10, decimals))
           : walletBal.toString();
 
       differences.push({
@@ -1123,5 +1124,27 @@ export class WalletsService {
       symbol: token.symbol,
       image: token.image,
     };
+  }
+
+  // Helper to avoid scientific notation
+  private formatDecimal(value: number | string): string {
+    const num = Number(value);
+    if (isNaN(num)) return '0';
+    // Use toFixed with a safe large precision and trim trailing zeros
+    // 20 is safe for most crypto (max usually 18)
+    return num.toFixed(20).replace(/\.?0+$/, '');
+  }
+
+  // Helper to convert amount to raw (wei) BigInt
+  // Assuming 18 decimals if not provided, consistent with bank wallet logic
+  private parseToRaw(amount: string | number, decimals: number = 18): bigint {
+    try {
+      const amountStr = Number(amount).toFixed(decimals);
+      const [integerPart, fractionalPart] = amountStr.split('.');
+      const paddedFraction = (fractionalPart || '').padEnd(decimals, '0');
+      return BigInt(integerPart + paddedFraction);
+    } catch {
+      return 0n;
+    }
   }
 }

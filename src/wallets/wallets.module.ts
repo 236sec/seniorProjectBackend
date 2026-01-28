@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AlchemysModule } from 'src/alchemys/alchemys.module';
+import { BanksWalletsModule } from 'src/banks-wallets/banks-wallets.module';
 import {
   BlockchainWallet,
   BlockchainWalletSchema,
@@ -26,6 +27,7 @@ import { WalletsService } from './wallets.service';
     CoingeckoModule,
     TransactionsModule,
     BlockchainModule,
+    BanksWalletsModule,
   ],
   controllers: [WalletsController],
   providers: [WalletsService],

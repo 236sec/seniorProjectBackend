@@ -23,6 +23,17 @@ export class TransactionsController {
     return this.transactionsService.create(createTransactionDto);
   }
 
+  @Post('bankWallets/:bankWalletId')
+  createBankWalletTransaction(
+    @Param('bankWalletId', ParseObjectIdPipe) bankWalletId: Types.ObjectId,
+    @Body() createBatchTransactionDto: CreateTransactionBatchDto,
+  ) {
+    return this.transactionsService.createBankWalletTransaction(
+      bankWalletId,
+      createBatchTransactionDto,
+    );
+  }
+
   @Post('batch')
   createBatch(@Body() batchDto: CreateTransactionBatchDto) {
     return this.transactionsService.createBatch(batchDto);

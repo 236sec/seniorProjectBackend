@@ -7,6 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AlchemysService } from 'src/alchemys/alchemys.service';
+import { BanksWalletsService } from 'src/banks-wallets/banks-wallets.service';
 import {
   BlockchainWallet,
   BlockchainWalletDocument,
@@ -15,11 +16,13 @@ import { BlockchainService } from 'src/blockchain/blockchain.service';
 import { SupportedPRC } from 'src/blockchain/enum/supported-prc.enum';
 import { CoingeckoService } from 'src/coingecko/coingecko.service';
 import { CHAIN_MAPPING } from 'src/common/constants/chain-mapping.constant';
+import { TokenDocument } from 'src/tokens/schema/token.schema';
 import { TokensService } from 'src/tokens/tokens.service';
 import { TransactionsService } from 'src/transactions/transactions.service';
 import { UsersService } from '../users/users.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import {
+  NormalizedBankWallet,
   NormalizedBlockchainToken,
   NormalizedBlockchainWallet,
   NormalizedManualToken,
@@ -49,6 +52,7 @@ export class WalletsService {
     private readonly coingeckoService: CoingeckoService,
     private readonly transactionsService: TransactionsService,
     private readonly blockchainService: BlockchainService,
+    private readonly bankWalletService: BanksWalletsService,
   ) {}
 
   async create(userId: Types.ObjectId, createWalletDto: CreateWalletDto) {
@@ -95,6 +99,12 @@ export class WalletsService {
           populate: {
             path: 'tokenId',
           },
+        },
+      })
+      .populate({
+        path: 'bankWalletId',
+        populate: {
+          path: 'tokens.tokenId',
         },
       })
       .populate('manualTokens.tokenId')
@@ -229,6 +239,58 @@ export class WalletsService {
       });
     }
 
+    // Extract tokens from bankWalletId.tokens if populated
+    const normalizedBankWallets: NormalizedBankWallet[] = [];
+    if (walletObj.bankWalletId) {
+      const bankWallets = Array.isArray(walletObj.bankWalletId)
+        ? walletObj.bankWalletId
+        : [walletObj.bankWalletId];
+
+      bankWallets.forEach((bw) => {
+        // Check if it's populated (not just an ObjectId)
+        if (typeof bw === 'object' && 'apiKey' in bw) {
+          const normalizedTokens: NormalizedManualToken[] = [];
+
+          if (bw.tokens && Array.isArray(bw.tokens)) {
+            bw.tokens.forEach((token) => {
+              // Check if tokenId is populated
+              if (
+                typeof token.tokenId === 'object' &&
+                '_id' in token.tokenId &&
+                'symbol' in token.tokenId
+              ) {
+                const populatedToken = token.tokenId;
+                const tokenId = populatedToken._id.toString();
+                if (populatedToken.id) {
+                  tokenIdsForPrice.add(populatedToken.id);
+                }
+                tokensMap.set(tokenId, this.toTokenInfo(populatedToken));
+
+                normalizedTokens.push({
+                  tokenId: tokenId,
+                  balance: token.balance,
+                });
+              } else {
+                // Not populated
+                normalizedTokens.push({
+                  tokenId: (token.tokenId as Types.ObjectId).toString(),
+                  balance: token.balance,
+                });
+              }
+            });
+          }
+
+          normalizedBankWallets.push({
+            _id: bw._id,
+            apiKey: bw.apiKey, // Should we return API key? Maybe masked or just presence. Assuming OK for now as it's the owner's request.
+            tokens: normalizedTokens,
+            createdAt: bw.createdAt,
+            updatedAt: bw.updatedAt,
+          });
+        }
+      });
+    }
+
     // Fetch current prices for all tokens
     let priceData: {
       [coinId: string]: { usd: number; usd_24h_change: number };
@@ -259,6 +321,7 @@ export class WalletsService {
       name: walletObj.name,
       description: walletObj.description,
       blockchainWalletId: normalizedBlockchainWallets,
+      bankWalletId: normalizedBankWallets,
       manualTokens: normalizedManualTokens,
       portfolioPerformance: normalizedPortfolioPerformance,
       createdAt: walletObj.createdAt || new Date(),
@@ -291,6 +354,43 @@ export class WalletsService {
     return this.walletModel
       .findByIdAndUpdate(id, updateWalletDto, { new: true })
       .exec();
+  }
+
+  async addBankWalletToWallet(
+    walletId: Types.ObjectId,
+    apiKey: string,
+    apiSecret: string,
+  ) {
+    const wallet = await this.walletModel.findById(walletId).exec();
+    if (!wallet) {
+      throw new NotFoundException('Wallet does not exist');
+    }
+
+    const existingBankWallet =
+      await this.bankWalletService.findByWalletIdAndApiKey(walletId, apiKey);
+
+    if (existingBankWallet) {
+      throw new ConflictException(
+        'Bank wallet with the given API key already exists for this wallet',
+      );
+    }
+    const createBankWalletDto = {
+      walletId: walletId,
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+    };
+    const createdBankWallet =
+      await this.bankWalletService.create(createBankWalletDto);
+
+    await this.walletModel
+      .findByIdAndUpdate(
+        walletId,
+        { $addToSet: { bankWalletId: createdBankWallet._id } },
+        { new: true },
+      )
+      .exec();
+
+    return createdBankWallet;
   }
 
   async addBlockchainWalletToWallet(
@@ -354,6 +454,177 @@ export class WalletsService {
       blockchainWallet._id,
     );
     return result;
+  }
+
+  async getDifferentBalanceInBankWallets(bankWalletId: Types.ObjectId) {
+    const bankWallet = await this.bankWalletService.findById(bankWalletId);
+    if (!bankWallet) {
+      throw new NotFoundException('Bank wallet does not exist');
+    }
+    const balanceData =
+      await this.bankWalletService.getCurrentBalanceWithToken(bankWalletId);
+    const existingTokens = bankWallet.tokens || [];
+
+    // Map Live Data
+    const liveMap = new Map<
+      string,
+      {
+        tokenId: TokenDocument;
+        amount: number;
+        product: string;
+      }
+    >();
+
+    balanceData.data.forEach((item) => {
+      if (item.tokenId && typeof item.tokenId === 'object') {
+        liveMap.set(item.tokenId._id.toString(), {
+          tokenId: item.tokenId,
+          amount: parseFloat(item.amount),
+          product: item.product,
+        });
+      }
+    });
+
+    // Map Stored Data
+    const storedMap = new Map<
+      string,
+      {
+        tokenId: string; // ObjectId string
+        balance: number;
+        rawBalance: string;
+      }
+    >();
+
+    existingTokens.forEach((item) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const tokenAny = item.tokenId as any;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const tId =
+        tokenAny && typeof tokenAny === 'object' && '_id' in tokenAny
+          ? // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+            tokenAny._id.toString()
+          : // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+            tokenAny.toString();
+
+      // BankWallet balances are stored as Hex strings scaled to 18 decimals (default)
+      // We convert back to number for comparison and display
+      const valBigInt = BigInt(item.balance);
+      const valNum = Number(valBigInt) / 1e18;
+
+      storedMap.set(tId, {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        tokenId: tId,
+        balance: valNum,
+        rawBalance: item.balance,
+      });
+    });
+
+    const allKeys = new Set([...liveMap.keys(), ...storedMap.keys()]);
+    const differences: any[] = [];
+
+    for (const key of allKeys) {
+      const live = liveMap.get(key);
+      const stored = storedMap.get(key);
+
+      const liveBal = live?.amount || 0;
+      const storedBal = stored?.balance || 0;
+      const storedRaw = stored?.rawBalance || '0x0';
+
+      // Compare with some tolerance for floats if needed, or strict inequality
+      if (liveBal === storedBal) continue;
+
+      // We need token info.
+      // If live exists, we have the document.
+      // If only stored exists (deletion), we might need to fetch the token info or rely on what we can get.
+      // Since stored tokens are just ObjectIds (unless populated), we might need to fetch if only stored exists.
+
+      let tokenInfo: TokenInfo | undefined;
+      let symbol: string = '';
+      let name: string = '';
+      let image: TokenInfo['image'] = undefined;
+
+      if (live) {
+        tokenInfo = {
+          _id: live.tokenId._id.toString(),
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          id: live.tokenId.id, // CoinGecko ID
+          symbol: live.tokenId.symbol,
+          name: live.tokenId.name,
+          image: live.tokenId.image,
+        };
+        symbol = live.tokenId.symbol;
+        name = live.tokenId.name;
+        image = live.tokenId.image;
+      } else if (stored) {
+        // Fetch token info for the stored token ID
+        const tDoc = await this.tokensService.findOne(new Types.ObjectId(key));
+        if (tDoc) {
+          tokenInfo = {
+            _id: tDoc._id.toString(),
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            id: tDoc.id,
+            symbol: tDoc.symbol,
+            name: tDoc.name,
+            image: tDoc.image,
+          };
+          symbol = tDoc.symbol;
+          name = tDoc.name;
+          image = tDoc.image;
+        }
+      }
+
+      if (!tokenInfo) continue;
+
+      differences.push({
+        contractAddress: '', // No contract address for bank wallet items usually
+        balance: '0', // Raw balance not applicable/available without decimals
+        balanceFormatted: liveBal.toString(),
+        walletBalance: storedRaw,
+        walletBalanceFormatted: storedBal.toString(),
+        symbol: symbol,
+        name: name,
+        logo: image?.thumb ?? null,
+        decimals: null,
+        network: 'InnovestX', // Or derive from product
+        token: {
+          _id: tokenInfo._id,
+          id: tokenInfo.id,
+          symbol: tokenInfo.symbol,
+          name: tokenInfo.name,
+          image: tokenInfo.image,
+        },
+      });
+    }
+
+    // Fetch prices
+    const tokenIds = differences
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
+      .map((d) => d.token.id)
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      .filter((id) => id && id.trim() !== '');
+
+    if (tokenIds.length > 0) {
+      try {
+        const prices = await this.coingeckoService.getCurrentPrice(tokenIds);
+        for (const diff of differences) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          if (diff.token.id && prices[diff.token.id]) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            diff.currentPrice = prices[diff.token.id].usd;
+          }
+        }
+      } catch (error) {
+        this.logger.error(
+          `Error fetching prices for differences: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    return {
+      walletId: bankWalletId,
+      totalTokens: differences.length,
+      differences,
+    };
   }
 
   async getDifferentBalanceInBlockchainWallets(

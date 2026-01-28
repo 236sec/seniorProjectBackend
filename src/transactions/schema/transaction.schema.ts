@@ -21,6 +21,9 @@ export class Transaction {
   @Prop({ type: Sc.Types.ObjectId, ref: 'BlockchainWallet' })
   blockchainWalletId: Types.ObjectId;
 
+  @Prop({ type: Sc.Types.ObjectId, ref: 'BankWallet' })
+  bankWalletId: Types.ObjectId;
+
   @Prop({ type: String, enum: TransactionType })
   type: TransactionType;
 

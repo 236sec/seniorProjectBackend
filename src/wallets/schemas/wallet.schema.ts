@@ -43,6 +43,9 @@ export class Wallet {
   })
   blockchainWalletId: Types.ObjectId[];
 
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'BankWallet' }], default: [] })
+  bankWalletId: Types.ObjectId[];
+
   @Prop({ type: [ManualTokenBalanceSchema], default: [] })
   manualTokens: ManualTokenBalance[];
 

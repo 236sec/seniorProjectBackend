@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
+import { CreateBankWalletDto } from 'src/banks-wallets/dto/create-bank-wallet.dto';
 import { ParseObjectIdPipe } from 'src/common/pipes/parse-object-id.pipe';
 import { TransactionsService } from 'src/transactions/transactions.service';
 import { AddBlockchainWalletDto } from './dto/add-blockchain-wallet.dto';
@@ -69,6 +70,23 @@ export class WalletsController {
   ) {
     return this.walletsService.getDifferentBalanceInBlockchainWallets(
       blockchainWalletId,
+    );
+  }
+
+  @Get('bankWallets/:bankWalletId/diff')
+  getDiffBalanceBankWallet(
+    @Param('bankWalletId', ParseObjectIdPipe)
+    bankWalletId: Types.ObjectId,
+  ) {
+    return this.walletsService.getDifferentBalanceInBankWallets(bankWalletId);
+  }
+
+  @Post('bankWallets')
+  addBankWallet(@Body() dto: CreateBankWalletDto) {
+    return this.walletsService.addBankWalletToWallet(
+      dto.walletId,
+      dto.apiKey,
+      dto.apiSecret,
     );
   }
 

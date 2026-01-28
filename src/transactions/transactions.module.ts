@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
+  BankWallet,
+  BankWalletSchema,
+} from 'src/banks-wallets/schema/bank-wallets.schema';
+import {
   BlockchainWallet,
   BlockchainWalletSchema,
 } from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
@@ -25,6 +29,7 @@ import { TransactionsService } from './transactions.service';
       { name: Transaction.name, schema: TransactionSchema },
       { name: TokenContract.name, schema: TokenContractSchema },
       { name: BlockchainWallet.name, schema: BlockchainWalletSchema },
+      { name: BankWallet.name, schema: BankWalletSchema },
       { name: Wallet.name, schema: WalletSchema },
       { name: Token.name, schema: TokenSchema },
       { name: TokenHistoricalPrice.name, schema: TokenHistoricalPriceSchema },

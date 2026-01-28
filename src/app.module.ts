@@ -11,6 +11,7 @@ import * as mongoose from 'mongoose';
 import { AlchemysModule } from './alchemys/alchemys.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { BanksWalletsModule } from './banks-wallets/banks-wallets.module';
 import { BlockchainWalletsModule } from './blockchain-wallets/blockchain-wallets.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { CoingeckoModule } from './coingecko/coingecko.module';
@@ -87,6 +88,7 @@ import { WalletsModule } from './wallets/wallets.module';
     IndicatorsModule,
     NotificationsModule,
     BlockchainModule,
+    BanksWalletsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

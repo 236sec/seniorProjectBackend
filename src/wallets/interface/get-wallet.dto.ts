@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { BankWallet } from 'src/banks-wallets/schema/bank-wallets.schema';
 import {
   BlockchainWallet,
   TokenBalance,
@@ -45,12 +46,21 @@ export interface NormalizedBlockchainWallet {
   updatedAt: Date;
 }
 
+export interface NormalizedBankWallet {
+  _id: Types.ObjectId;
+  apiKey: string;
+  tokens: NormalizedManualToken[]; // Reuse ManualToken format as it fits (tokenId, balance)
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface NormalizedWallet {
   _id: Types.ObjectId;
   userId: Types.ObjectId;
   name: string;
   description: string;
   blockchainWalletId: NormalizedBlockchainWallet[];
+  bankWalletId?: NormalizedBankWallet[];
   manualTokens: NormalizedManualToken[];
   portfolioPerformance: NormalizedPortfolioPerformance[];
   createdAt: Date;
@@ -112,15 +122,24 @@ export type PopulatedManualTokenBalance = Omit<
   tokenId: PopulatedToken;
 };
 
+// Type for BankWallet with populated tokens
+export type PopulatedBankWallet = Omit<BankWallet, 'tokens'> & {
+  _id: Types.ObjectId;
+  tokens: PopulatedManualTokenBalance[]; // Reuse manual balance type as it has populated tokenId
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 // Type for Wallet with all populated fields
 export type PopulatedWallet = Omit<
   Wallet,
-  'blockchainWalletId' | 'manualTokens'
+  'blockchainWalletId' | 'manualTokens' | 'bankWalletId'
 > & {
   _id: Types.ObjectId;
   blockchainWalletId:
     | Types.ObjectId[]
     | (Types.ObjectId | PopulatedBlockchainWallet)[];
+  bankWalletId: Types.ObjectId[] | (Types.ObjectId | PopulatedBankWallet)[];
   manualTokens: (PopulatedManualTokenBalance | ManualTokenBalance)[];
   createdAt?: Date;
   updatedAt?: Date;

@@ -6,6 +6,10 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
+  BankWallet,
+  BankWalletDocument,
+} from 'src/banks-wallets/schema/bank-wallets.schema';
+import {
   BlockchainWallet,
   BlockchainWalletDocument,
 } from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
@@ -43,6 +47,8 @@ export class TransactionsService {
     private readonly tokenContractModel: Model<TokenContractDocument>,
     @InjectModel(BlockchainWallet.name)
     private readonly blockchainWalletModel: Model<BlockchainWalletDocument>,
+    @InjectModel(BankWallet.name)
+    private readonly bankWalletModel: Model<BankWalletDocument>,
     @InjectModel(Wallet.name)
     private readonly walletModel: Model<WalletDocument>,
     @InjectModel(Token.name)
@@ -145,6 +151,95 @@ export class TransactionsService {
     );
 
     return savedTransaction;
+  }
+
+  async createBankWalletTransaction(
+    bankWalletId: Types.ObjectId,
+    batchDto: CreateTransactionBatchDto,
+  ) {
+    const { items, walletId } = batchDto;
+
+    // Sort items by timestamp to ensure chronological processing
+    items.sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+
+    const wallet = await this.walletModel.findById(walletId).exec();
+    if (!wallet) throw new Error('Wallet not found');
+
+    const bankWallet = await this.bankWalletModel.findById(bankWalletId).exec();
+    if (!bankWallet) throw new Error('Bank wallet not found');
+
+    if (!bankWallet.walletId.equals(wallet._id)) {
+      throw new Error('Bank wallet does not belong to the specified wallet');
+    }
+
+    const results: TransactionDocument[] = [];
+
+    for (const item of items) {
+      if (
+        item.decimals !== undefined &&
+        item.quantity &&
+        !item.quantity.startsWith('0x')
+      ) {
+        item.quantity = fromDecimalString(item.quantity, item.decimals);
+      }
+
+      const dto: CreateTransactionDto = {
+        ...item,
+        walletId: walletId,
+        bankWalletId: bankWalletId,
+      };
+
+      if (dto.type === TransactionType.SYNCED) {
+        // validate token exists (BankWallet uses Token, not TokenContract usually, or matches Token to TokenContract?)
+        // BankWallet schema uses Token (tokenId).
+        if (!dto.tokenId && dto.coingeckoId) {
+          const tokenData = await this.tokenModel
+            .findOne({ id: dto.coingeckoId })
+            .exec();
+          if (tokenData) {
+            dto.tokenId = new Types.ObjectId(tokenData._id);
+          } else {
+            throw new Error(
+              `Token not found for coingeckoId: ${dto.coingeckoId}`,
+            );
+          }
+        }
+
+        if (!dto.tokenId) {
+          throw new Error('Token ID is required for bank wallet transaction');
+        }
+
+        const token = await this.tokenModel.findById(dto.tokenId).exec();
+        if (!token) throw new Error('Token not found');
+
+        // Update Bank Wallet Balance
+        this.updateBankWalletBalance(
+          bankWallet,
+          dto.tokenId,
+          dto.quantity!,
+          dto.event_type!,
+        );
+      }
+
+      const created = new this.transactionModel({
+        ...dto,
+        walletId: new Types.ObjectId(dto.walletId),
+      });
+      results.push(await created.save());
+    }
+
+    await bankWallet.save();
+
+    // Calculate and update portfolio performance
+    await this.calculateAndUpdatePortfolioPerformance(
+      new Types.ObjectId(walletId),
+      results,
+    );
+
+    return results;
   }
 
   async validateTransaction(
@@ -381,6 +476,48 @@ export class TransactionsService {
         }
       } else {
         throw new Error('Token not found in wallet for withdrawal');
+      }
+    }
+  }
+
+  private updateBankWalletBalance(
+    bankWallet: BankWalletDocument,
+    tokenId: Types.ObjectId,
+    quantity: string,
+    eventType: TransactionEventType,
+  ) {
+    const existingIndex = bankWallet.tokens.findIndex((t) =>
+      t.tokenId.equals(tokenId),
+    );
+    const deltaStr = quantity || '0x0';
+
+    if (eventType === TransactionEventType.DEPOSIT) {
+      if (existingIndex >= 0) {
+        const currentStr = bankWallet.tokens[existingIndex].balance || '0x0';
+        bankWallet.tokens[existingIndex].balance = addHexBalances(
+          currentStr,
+          deltaStr,
+        );
+      } else {
+        bankWallet.tokens.push({
+          tokenId,
+          balance: deltaStr,
+        });
+      }
+    } else if (eventType === TransactionEventType.WITHDRAWAL) {
+      if (existingIndex >= 0) {
+        const currentStr = bankWallet.tokens[existingIndex].balance || '0x0';
+        const newBalance = subHexBalances(currentStr, deltaStr);
+
+        if (isZero(newBalance)) {
+          bankWallet.tokens.splice(existingIndex, 1);
+        } else if (isNegative(newBalance)) {
+          throw new Error('Insufficient balance for withdrawal');
+        } else {
+          bankWallet.tokens[existingIndex].balance = newBalance;
+        }
+      } else {
+        throw new Error('Token not found in bank wallet for withdrawal');
       }
     }
   }

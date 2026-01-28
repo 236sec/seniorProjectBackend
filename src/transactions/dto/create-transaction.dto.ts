@@ -17,6 +17,10 @@ import {
 export class TransctionInfo {
   @IsOptional()
   @ToObjectId()
+  bankWalletId?: Types.ObjectId;
+
+  @IsOptional()
+  @ToObjectId()
   blockchainWalletId?: Types.ObjectId;
 
   @IsString()

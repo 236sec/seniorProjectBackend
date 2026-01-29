@@ -7,6 +7,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
 import { AlchemysService } from 'src/alchemys/alchemys.service';
+import { BanksWalletsService } from 'src/banks-wallets/banks-wallets.service';
 import { BlockchainWallet } from 'src/blockchain-wallets/schema/blockchain-wallet.schema';
 import { BlockchainService } from 'src/blockchain/blockchain.service';
 import { SupportedPRC } from 'src/blockchain/enum/supported-prc.enum';
@@ -138,6 +139,7 @@ describe('WalletsService', () => {
         { provide: CoingeckoService, useValue: coingeckoService },
         { provide: TransactionsService, useValue: transactionsService },
         { provide: BlockchainService, useValue: blockchainService },
+        { provide: BanksWalletsService, useValue: {} },
       ],
     }).compile();
 
@@ -215,7 +217,10 @@ describe('WalletsService', () => {
       const leanMock = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockPopulatedWallet),
       });
-      const populateMock2 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock3 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock2 = jest
+        .fn()
+        .mockReturnValue({ populate: populateMock3 });
       const populateMock1 = jest
         .fn()
         .mockReturnValue({ populate: populateMock2 });
@@ -232,7 +237,10 @@ describe('WalletsService', () => {
       const leanMock = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue(null),
       });
-      const populateMock2 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock3 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock2 = jest
+        .fn()
+        .mockReturnValue({ populate: populateMock3 });
       const populateMock1 = jest
         .fn()
         .mockReturnValue({ populate: populateMock2 });
@@ -263,7 +271,10 @@ describe('WalletsService', () => {
       const leanMock = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockPopulatedWallet),
       });
-      const populateMock2 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock3 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock2 = jest
+        .fn()
+        .mockReturnValue({ populate: populateMock3 });
       const populateMock1 = jest
         .fn()
         .mockReturnValue({ populate: populateMock2 });
@@ -505,7 +516,10 @@ describe('WalletsService', () => {
       const leanMock = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue(unpopWallet),
       });
-      const populateMock2 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock3 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock2 = jest
+        .fn()
+        .mockReturnValue({ populate: populateMock3 });
       const populateMock1 = jest
         .fn()
         .mockReturnValue({ populate: populateMock2 });
@@ -535,7 +549,10 @@ describe('WalletsService', () => {
       const leanMock = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue(ppWallet),
       });
-      const populateMock2 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock3 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock2 = jest
+        .fn()
+        .mockReturnValue({ populate: populateMock3 });
       const populateMock1 = jest
         .fn()
         .mockReturnValue({ populate: populateMock2 });
@@ -963,7 +980,10 @@ describe('WalletsService', () => {
       const leanMock = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockPopulatedWallet),
       });
-      const populateMock2 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock3 = jest.fn().mockReturnValue({ lean: leanMock });
+      const populateMock2 = jest
+        .fn()
+        .mockReturnValue({ populate: populateMock3 });
       const populateMock1 = jest
         .fn()
         .mockReturnValue({ populate: populateMock2 });

@@ -9,6 +9,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
+import { BankWallet } from '../banks-wallets/schema/bank-wallets.schema';
 import { BlockchainWallet } from '../blockchain-wallets/schema/blockchain-wallet.schema';
 import { CoingeckoService } from '../coingecko/coingecko.service';
 import { TokenContract } from '../tokens/schema/token-contract.schema';
@@ -28,6 +29,7 @@ describe('TransactionsService', () => {
   let transactionModel: any;
   let tokenContractModel: any;
   let blockchainWalletModel: any;
+  let bankWalletModel: any;
   let walletModel: any;
   let tokenModel: any;
 
@@ -89,6 +91,10 @@ describe('TransactionsService', () => {
           provide: getModelToken(BlockchainWallet.name),
           useValue: createMockModel(),
         },
+        {
+          provide: getModelToken(BankWallet.name),
+          useValue: createMockModel(),
+        },
         { provide: getModelToken(Wallet.name), useValue: createMockModel() },
         { provide: getModelToken(Token.name), useValue: createMockModel() },
         { provide: CoingeckoService, useValue: mockCoingeckoService },
@@ -99,6 +105,7 @@ describe('TransactionsService', () => {
     transactionModel = module.get(getModelToken(Transaction.name));
     tokenContractModel = module.get(getModelToken(TokenContract.name));
     blockchainWalletModel = module.get(getModelToken(BlockchainWallet.name));
+    bankWalletModel = module.get(getModelToken(BankWallet.name));
     walletModel = module.get(getModelToken(Wallet.name));
     tokenModel = module.get(getModelToken(Token.name));
   });

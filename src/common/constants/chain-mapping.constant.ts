@@ -24,7 +24,7 @@ export const MappingSupportedRPCToCoingeckoChain: Record<
   SupportedPRC,
   CoingeckoChain
 > = {
-  [SupportedPRC.ETH]: CoingeckoChain.ETHEREUM,
+  // [SupportedPRC.ETH]: CoingeckoChain.ETHEREUM,
   [SupportedPRC.BNB]: CoingeckoChain.BINANCE_SMART_CHAIN,
-  [SupportedPRC.BASE]: CoingeckoChain.BASE,
+  // [SupportedPRC.BASE]: CoingeckoChain.BASE,
 };

@@ -1,5 +1,5 @@
 export enum SupportedPRC {
-  ETH = 'eth',
+  // ETH = 'eth',
   BNB = 'bnb',
-  BASE = 'base',
+  // BASE = 'base',
 }

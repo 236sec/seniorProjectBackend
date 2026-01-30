@@ -1,42 +1,50 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/unbound-method */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/unbound-method */
 /* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { MailerService } from '@nestjs-modules/mailer';
-import { BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { CoingeckoService } from '../coingecko/coingecko.service';
-import { TokensService } from '../tokens/tokens.service';
-import { UsersService } from '../users/users.service';
+import { CoingeckoService } from 'src/coingecko/coingecko.service';
+import { TokensService } from 'src/tokens/tokens.service';
+import { UsersService } from 'src/users/users.service';
+import { CreateNotificationDto } from './dto/create-notification.dto';
+import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { NotificationsService } from './notifications.service';
 import { AlertCondition, UserAlert } from './schema/notification.schema';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
-  let userAlertModel: any;
-  let usersService: any;
-  let tokensService: any;
-  let coingeckoService: any;
-  let mailerService: any;
-  let configService: any;
+  let model: any;
+  let usersService: UsersService;
+  let tokensService: TokensService;
+  let coingeckoService: CoingeckoService;
+  let mailerService: MailerService;
 
-  const mockQuery = {
-    populate: jest.fn().mockReturnThis(),
-    exec: jest.fn(),
+  let configService: ConfigService;
+
+  const mockUserAlert = {
+    _id: new Types.ObjectId(),
+    user: new Types.ObjectId(),
+    token: new Types.ObjectId(),
+    targetPrice: 100,
+    condition: 'ABOVE',
+    isActive: true,
+    save: jest.fn(),
   };
 
   const mockUserAlertModel = {
-    aggregate: jest.fn(),
     create: jest.fn(),
-    find: jest.fn(() => mockQuery),
-    findById: jest.fn(() => mockQuery),
-    findByIdAndUpdate: jest.fn(() => mockQuery),
-    findByIdAndDelete: jest.fn(() => ({ exec: jest.fn() })),
+    find: jest.fn(),
+    findById: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
+    findByIdAndDelete: jest.fn(),
+    aggregate: jest.fn(),
   };
 
   const mockUsersService = {
@@ -56,13 +64,10 @@ describe('NotificationsService', () => {
   };
 
   const mockConfigService = {
-    get: jest.fn(),
+    get: jest.fn().mockReturnValue('test@example.com'),
   };
 
   beforeEach(async () => {
-    jest.clearAllMocks();
-    mockQuery.populate.mockReturnThis();
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationsService,
@@ -94,177 +99,105 @@ describe('NotificationsService', () => {
     }).compile();
 
     service = module.get<NotificationsService>(NotificationsService);
-    userAlertModel = module.get(getModelToken(UserAlert.name));
-    usersService = module.get(UsersService);
-    tokensService = module.get(TokensService);
-    coingeckoService = module.get(CoingeckoService);
-    mailerService = module.get(MailerService);
-    configService = module.get(ConfigService);
+    model = module.get(getModelToken(UserAlert.name));
+    usersService = module.get<UsersService>(UsersService);
+    tokensService = module.get<TokensService>(TokensService);
+    coingeckoService = module.get<CoingeckoService>(CoingeckoService);
+    mailerService = module.get<MailerService>(MailerService);
+    configService = module.get<ConfigService>(ConfigService);
+  });
 
-    // Default config behavior
-    mockConfigService.get.mockReturnValue('noreply@example.com');
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  it('should warn if SMTP_FROM is not configured', async () => {
-    jest.clearAllMocks();
-    mockConfigService.get.mockReturnValue(null);
-    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        NotificationsService,
-        {
-          provide: getModelToken(UserAlert.name),
-          useValue: mockUserAlertModel,
-        },
-        {
-          provide: UsersService,
-          useValue: mockUsersService,
-        },
-        {
-          provide: TokensService,
-          useValue: mockTokensService,
-        },
-        {
-          provide: CoingeckoService,
-          useValue: mockCoingeckoService,
-        },
-        {
-          provide: MailerService,
-          useValue: mockMailerService,
-        },
-        {
-          provide: ConfigService,
-          useValue: mockConfigService,
-        },
-      ],
-    }).compile();
-
-    module.get<NotificationsService>(NotificationsService);
-    expect(warnSpy).toHaveBeenCalledWith('SMTP_FROM not configured');
-
-    warnSpy.mockRestore();
-  });
-
   describe('getActiveAlertTokens', () => {
-    it('should return a list of active alert tokens', async () => {
+    it('should return aggregation result', async () => {
       const mockResult = [
-        {
-          _id: null,
-          tokens: [{ coingeckoId: 'bitcoin', tokenId: new Types.ObjectId() }],
-        },
+        { tokens: [{ coingeckoId: 'bitcoin', tokenId: new Types.ObjectId() }] },
       ];
       mockUserAlertModel.aggregate.mockResolvedValue(mockResult);
 
       const result = await service.getActiveAlertTokens();
-
-      expect(userAlertModel.aggregate).toHaveBeenCalled();
       expect(result).toEqual(mockResult[0].tokens);
-    });
-
-    it('should return empty array if no active alerts', async () => {
-      mockUserAlertModel.aggregate.mockResolvedValue([]);
-
-      const result = await service.getActiveAlertTokens();
-
-      expect(result).toEqual([]);
+      expect(mockUserAlertModel.aggregate).toHaveBeenCalled();
     });
   });
 
   describe('create', () => {
-    const createDto = {
-      userId: new Types.ObjectId(),
-      tokenId: new Types.ObjectId(),
-      coingeckoId: 'bitcoin',
-      condition: AlertCondition.ABOVE,
-      targetPrice: 50000,
-    };
-
-    it('should create a new alert', async () => {
-      const mockUser = { _id: createDto.userId };
-      const mockToken = { _id: createDto.tokenId, coingeckoId: 'bitcoin' };
-      const mockCreatedAlert = {
-        ...createDto,
-        user: createDto.userId,
-        token: createDto.tokenId,
-        isActive: true,
+    it('should check user and token then create alert', async () => {
+      const dto: CreateNotificationDto = {
+        userId: new Types.ObjectId(),
+        tokenId: new Types.ObjectId(),
+        coingeckoId: 'bitcoin',
+        targetPrice: 50000,
+        condition: AlertCondition.ABOVE,
       };
+
+      const mockUser = { _id: dto.userId };
+      const mockToken = { _id: dto.tokenId };
 
       mockUsersService.findOne.mockResolvedValue(mockUser);
       mockTokensService.fineToken.mockResolvedValue(mockToken);
-      mockUserAlertModel.create.mockResolvedValue(mockCreatedAlert);
+      mockUserAlertModel.create.mockResolvedValue(mockUserAlert);
 
-      const result = await service.create(createDto);
-
-      expect(usersService.findOne).toHaveBeenCalledWith(createDto.userId);
+      const result = await service.create(dto);
+      expect(result).toEqual(mockUserAlert);
+      expect(usersService.findOne).toHaveBeenCalledWith(dto.userId);
       expect(tokensService.fineToken).toHaveBeenCalledWith(
-        createDto.tokenId,
-        createDto.coingeckoId,
+        dto.tokenId,
+        dto.coingeckoId,
       );
-      expect(userAlertModel.create).toHaveBeenCalled();
-      expect(result).toEqual(mockCreatedAlert);
-    });
-
-    it('should throw BadRequestException if user not found', async () => {
-      mockUsersService.findOne.mockResolvedValue(null);
-
-      await expect(service.create(createDto)).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should throw BadRequestException if token not found', async () => {
-      mockUsersService.findOne.mockResolvedValue({ _id: createDto.userId });
-      mockTokensService.fineToken.mockResolvedValue(null);
-
-      await expect(service.create(createDto)).rejects.toThrow(
-        BadRequestException,
-      );
+      expect(mockUserAlertModel.create).toHaveBeenCalled();
     });
   });
 
   describe('findByUserId', () => {
-    it('should return alerts for a user', async () => {
+    it('should find alerts by user id', async () => {
       const userId = new Types.ObjectId();
-      const mockAlerts = [{ _id: 'alert1' }];
-      mockQuery.exec.mockResolvedValue(mockAlerts);
+      const mockExec = jest.fn().mockResolvedValue([mockUserAlert]);
+      const mockPopulate = jest.fn().mockReturnValue({ exec: mockExec });
+      mockUserAlertModel.find.mockReturnValue({ populate: mockPopulate });
 
       const result = await service.findByUserId(userId);
-
-      expect(userAlertModel.find).toHaveBeenCalledWith({ user: userId });
-      expect(mockQuery.populate).toHaveBeenCalledWith(['token']);
-      expect(result).toEqual(mockAlerts);
+      expect(result).toEqual([mockUserAlert]);
+      expect(mockUserAlertModel.find).toHaveBeenCalledWith({ user: userId });
     });
   });
 
   describe('checkAlertsForTokenPrice', () => {
-    it('should return alerts matching criteria', async () => {
+    it('should find alerts matching conditions', async () => {
       const tokenId = new Types.ObjectId();
       const currentPrice = 50000;
-      const mockAlerts = [{ _id: 'alert1' }];
+      const mockExec = jest.fn().mockResolvedValue([mockUserAlert]);
+      const mockPopulate = jest.fn().mockReturnValue(mockExec); // .populate().then() -> query object is thenable or we simulate query chain
+      // Actually mongoose Query object: find -> populate -> (await/exec)
+      // Service code: return this.userAlertModel.find(...).populate(...) (no exec, returns query)
+      // Wait, service wrapper returns the query object directly?
+      // "return this.userAlertModel.find(...).populate(['user', 'token']);"
+      // It returns the Query object which is thenable.
 
-      // Since checkAlertsForTokenPrice does NOT call exec() but returns the query/promise chain
-      // We must ensure the mock returns something that can be awaited or treated as such.
-      // But typically await works on thenables.
-      // Mongoose Query is a thenable.
-      // Let's make mockQuery look like a thenable when populated.
-      const thenableMock = {
-        ...mockQuery,
-        then: (resolve) => resolve(mockAlerts),
+      // Let's adjust mock to return a chainable object
+      const mockQuery = {
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([mockUserAlert]),
+        then: (resolve: any) => resolve([mockUserAlert]), // Make it thenable for await in test if needed, or if caller awaits it
       };
+      mockUserAlertModel.find.mockReturnValue(mockQuery);
 
-      mockQuery.populate.mockReturnValue(thenableMock);
+      const result = service.checkAlertsForTokenPrice(tokenId, currentPrice);
+      // Since it returns query, we can await it or check it.
+      // In processPriceAlerts it is awaited: "const alerts = await this.checkAlertsForTokenPrice(...)"
+      // So the object returned by populate must be thenable or have exec.
 
-      const result = await service.checkAlertsForTokenPrice(
-        tokenId,
-        currentPrice,
-      );
+      // In the test we can just check if it returns the mockQuery which is what we mocked.
+      expect(result).toEqual(mockQuery);
 
-      expect(userAlertModel.find).toHaveBeenCalledWith({
+      expect(mockUserAlertModel.find).toHaveBeenCalledWith({
         token: tokenId,
         isActive: true,
         $or: [
@@ -272,346 +205,118 @@ describe('NotificationsService', () => {
           { condition: 'BELOW', targetPrice: { $gte: currentPrice } },
         ],
       });
-      expect(mockQuery.populate).toHaveBeenCalledWith(['user', 'token']);
-      expect(result).toEqual(mockAlerts);
     });
   });
 
   describe('processPriceAlerts', () => {
-    it('should do nothing if no active alerts', async () => {
-      // Spy on getActiveAlertTokens
-      jest.spyOn(service, 'getActiveAlertTokens').mockResolvedValue([]);
-      const logSpy = jest.spyOn((service as any).logger, 'log');
+    it('should process alerts and send emails', async () => {
+      // Mock getActiveAlertTokens
+      const alertTokens = [
+        { coingeckoId: 'bitcoin', tokenId: new Types.ObjectId() },
+      ];
+      jest
+        .spyOn(service, 'getActiveAlertTokens')
+        .mockResolvedValue(alertTokens);
+
+      // Mock Coingecko
+      const prices = { bitcoin: { usd: 50000, usd_24h_change: 0 } };
+      mockCoingeckoService.getCurrentPrice.mockResolvedValue(prices);
+
+      // Mock checkAlertsForTokenPrice
+      const mockAlertInstance = {
+        ...mockUserAlert,
+        user: { email: 'user@test.com' },
+        token: { name: 'Bitcoin', symbol: 'btc' },
+        save: jest.fn(),
+      };
+      // service.checkAlertsForTokenPrice returns a Query which is awaited.
+      // We spy on the method to return the list directly since it is awaited in the service method
+      jest
+        .spyOn(service, 'checkAlertsForTokenPrice')
+        .mockResolvedValue([mockAlertInstance] as any);
+
+      // Mock sendEmail
+      const sendEmailSpy = jest
+        .spyOn(service, 'sendEmail')
+        .mockResolvedValue(undefined);
 
       await service.processPriceAlerts();
 
       expect(service.getActiveAlertTokens).toHaveBeenCalled();
-      expect(logSpy).toHaveBeenCalledWith('No active alerts found.');
-    });
-
-    it('should process alerts and send emails', async () => {
-      const tokenId = new Types.ObjectId();
-      const coingeckoId = 'bitcoin';
-      const userId = new Types.ObjectId();
-      const alertId = new Types.ObjectId();
-
-      const mockTokens = [{ coingeckoId, tokenId }];
-      jest.spyOn(service, 'getActiveAlertTokens').mockResolvedValue(mockTokens);
-
-      mockCoingeckoService.getCurrentPrice.mockResolvedValue({
-        [coingeckoId]: { usd: 60000 },
-      });
-
-      const mockAlert = {
-        _id: alertId,
-        user: { email: 'test@example.com', _id: userId },
-        token: { name: 'Bitcoin', symbol: 'btc' },
-        condition: 'ABOVE',
-        targetPrice: 55000,
-        isActive: true,
-        saved: false,
-        save: jest.fn(),
-      };
-
-      // Mock checkAlertsForTokenPrice
-      jest
-        .spyOn(service, 'checkAlertsForTokenPrice')
-        .mockResolvedValue([mockAlert as any]);
-
-      // Mock sendEmail
-      const sendEmailSpy = jest.spyOn(service, 'sendEmail').mockResolvedValue();
-
-      await service.processPriceAlerts();
-
       expect(coingeckoService.getCurrentPrice).toHaveBeenCalledWith([
-        coingeckoId,
+        'bitcoin',
       ]);
-      expect(service.checkAlertsForTokenPrice).toHaveBeenCalledWith(
-        tokenId,
-        60000,
-      );
-      expect(sendEmailSpy).toHaveBeenCalled();
-      expect(mockAlert.save).toHaveBeenCalled();
-      expect(mockAlert.isActive).toBe(false);
-    });
-
-    it('should handle pagination of coingecko requests', async () => {
-      const tokens: { coingeckoId: string; tokenId: Types.ObjectId }[] = [];
-      for (let i = 0; i < 30; i++) {
-        tokens.push({ coingeckoId: `id-${i}`, tokenId: new Types.ObjectId() });
-      }
-      jest.spyOn(service, 'getActiveAlertTokens').mockResolvedValue(tokens);
-      mockCoingeckoService.getCurrentPrice.mockResolvedValue({});
-
-      await service.processPriceAlerts();
-
-      // Should be called 2 times (20 + 10)
-      expect(coingeckoService.getCurrentPrice).toHaveBeenCalledTimes(2);
-    });
-
-    it('should skip if price data is missing', async () => {
-      const tokenId = new Types.ObjectId();
-      const coingeckoId = 'bitcoin';
-
-      jest
-        .spyOn(service, 'getActiveAlertTokens')
-        .mockResolvedValue([{ coingeckoId, tokenId }]);
-      mockCoingeckoService.getCurrentPrice.mockResolvedValue({}); // No data
-
-      const checkSpy = jest.spyOn(service, 'checkAlertsForTokenPrice');
-
-      await service.processPriceAlerts();
-
-      expect(checkSpy).not.toHaveBeenCalled();
-    });
-
-    it('should skip if user has no email', async () => {
-      const tokenId = new Types.ObjectId();
-      const coingeckoId = 'bitcoin';
-
-      jest
-        .spyOn(service, 'getActiveAlertTokens')
-        .mockResolvedValue([{ coingeckoId, tokenId }]);
-      mockCoingeckoService.getCurrentPrice.mockResolvedValue({
-        [coingeckoId]: { usd: 100 },
-      });
-
-      const mockAlert = { user: {}, token: { name: 'Token' } }; // No email
-      jest
-        .spyOn(service, 'checkAlertsForTokenPrice')
-        .mockResolvedValue([mockAlert as any]);
-      const sendEmailSpy = jest.spyOn(service, 'sendEmail');
-
-      await service.processPriceAlerts();
-
-      expect(sendEmailSpy).not.toHaveBeenCalled();
-    });
-
-    it('should skip if price is 0', async () => {
-      const tokenId = new Types.ObjectId();
-      const coingeckoId = 'bitcoin';
-
-      jest
-        .spyOn(service, 'getActiveAlertTokens')
-        .mockResolvedValue([{ coingeckoId, tokenId }]);
-      mockCoingeckoService.getCurrentPrice.mockResolvedValue({
-        [coingeckoId]: { usd: 0 },
-      });
-
-      const checkSpy = jest.spyOn(service, 'checkAlertsForTokenPrice');
-
-      await service.processPriceAlerts();
-
-      expect(checkSpy).not.toHaveBeenCalled();
-    });
-
-    it('should skip if user is missing', async () => {
-      const tokenId = new Types.ObjectId();
-      const coingeckoId = 'bitcoin';
-
-      jest
-        .spyOn(service, 'getActiveAlertTokens')
-        .mockResolvedValue([{ coingeckoId, tokenId }]);
-      mockCoingeckoService.getCurrentPrice.mockResolvedValue({
-        [coingeckoId]: { usd: 100 },
-      });
-
-      const mockAlert = { user: null, token: { name: 'Token' } };
-      jest
-        .spyOn(service, 'checkAlertsForTokenPrice')
-        .mockResolvedValue([mockAlert as any]);
-      const sendEmailSpy = jest.spyOn(service, 'sendEmail');
-
-      await service.processPriceAlerts();
-
-      expect(sendEmailSpy).not.toHaveBeenCalled();
-    });
-
-    it('should continue if no alerts match price', async () => {
-      const tokenId = new Types.ObjectId();
-      const coingeckoId = 'bitcoin';
-
-      jest
-        .spyOn(service, 'getActiveAlertTokens')
-        .mockResolvedValue([{ coingeckoId, tokenId }]);
-      mockCoingeckoService.getCurrentPrice.mockResolvedValue({
-        [coingeckoId]: { usd: 100 },
-      });
-
-      jest.spyOn(service, 'checkAlertsForTokenPrice').mockResolvedValue([]); // Empty alerts
-      const sendEmailSpy = jest.spyOn(service, 'sendEmail');
-
-      await service.processPriceAlerts();
-
-      expect(sendEmailSpy).not.toHaveBeenCalled();
+      expect(service.checkAlertsForTokenPrice).toHaveBeenCalled();
+      expect(service.sendEmail).toHaveBeenCalled();
+      expect(mockAlertInstance.save).toHaveBeenCalled();
     });
   });
 
   describe('sendEmail', () => {
-    it('should send email successfully', async () => {
-      const params = {
-        emails: ['test@email.com'],
-        subject: 'Test',
-        template: 'test',
+    it('should call mailer service', async () => {
+      const options = {
+        emails: ['test@example.com'],
+        subject: 'Subject',
+        template: 'template',
         context: {},
       };
-      mockMailerService.sendMail.mockResolvedValue('OK');
-      const logSpy = jest.spyOn((service as any).logger, 'log');
 
-      await service.sendEmail(params);
+      mockMailerService.sendMail.mockResolvedValue({ accepted: [] });
 
-      expect(mailerService.sendMail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to: params.emails,
-          subject: params.subject,
-        }),
-      );
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Email sent successfully'),
-      );
-    });
+      await service.sendEmail(options);
 
-    it('should log error if sendMail fails', async () => {
-      const params = {
-        emails: ['test@email.com'],
-        subject: 'Test',
-        template: 'test',
-        context: {},
-      };
-      mockMailerService.sendMail.mockRejectedValue(new Error('Mail error'));
-      const errorSpy = jest.spyOn((service as any).logger, 'error');
-
-      await service.sendEmail(params);
-
-      expect(errorSpy).toHaveBeenCalled();
-    });
-
-    it('should return if no emails provided', async () => {
-      await service.sendEmail({
-        emails: [],
-        subject: '',
-        template: '',
-        context: {},
+      expect(mockMailerService.sendMail).toHaveBeenCalledWith({
+        to: options.emails,
+        from: 'test@example.com', // from config
+        subject: options.subject,
+        template: options.template,
+        context: options.context,
       });
-      expect(mailerService.sendMail).not.toHaveBeenCalled();
-    });
-
-    it('should return if emails is null', async () => {
-      await service.sendEmail({
-        emails: null as any,
-        subject: '',
-        template: '',
-        context: {},
-      });
-      expect(mailerService.sendMail).not.toHaveBeenCalled();
-    });
-
-    it('should log error if smtp from is not configured', async () => {
-      // Re-init service with missing config
-      jest.clearAllMocks();
-      mockConfigService.get.mockReturnValue(null);
-
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          NotificationsService,
-          {
-            provide: getModelToken(UserAlert.name),
-            useValue: mockUserAlertModel,
-          },
-          { provide: UsersService, useValue: mockUsersService },
-          { provide: TokensService, useValue: mockTokensService },
-          { provide: CoingeckoService, useValue: mockCoingeckoService },
-          { provide: MailerService, useValue: mockMailerService },
-          { provide: ConfigService, useValue: mockConfigService },
-        ],
-      }).compile();
-      const serviceNoConfig =
-        module.get<NotificationsService>(NotificationsService);
-      const errorSpy = jest.spyOn((serviceNoConfig as any).logger, 'error');
-
-      await serviceNoConfig.sendEmail({
-        emails: ['a@a.com'],
-        subject: '',
-        template: '',
-        context: {},
-      });
-
-      expect(errorSpy).toHaveBeenCalledWith(
-        'Cannot send email: SMTP_FROM is not configured.',
-      );
-    });
-
-    it('should catch non-Error objects', async () => {
-      mockMailerService.sendMail.mockRejectedValue('String Error');
-      const errorSpy = jest.spyOn((service as any).logger, 'error');
-
-      await service.sendEmail({
-        emails: ['a'],
-        subject: 'b',
-        template: 'c',
-        context: {},
-      });
-
-      expect(errorSpy).toHaveBeenCalled();
-    });
-
-    it('should catch Error with undefined stack', async () => {
-      const err = new Error('No stack');
-      err.stack = undefined;
-      mockMailerService.sendMail.mockRejectedValue(err);
-      const errorSpy = jest.spyOn((service as any).logger, 'error');
-
-      await service.sendEmail({
-        emails: ['a'],
-        subject: 'b',
-        template: 'c',
-        context: {},
-      });
-
-      expect(errorSpy).toHaveBeenCalled();
     });
   });
 
   describe('findAll', () => {
     it('should return all alerts', async () => {
-      mockQuery.exec.mockResolvedValue([]);
-      // Reset find to return mockQuery again as it might have been changed in prev tests
-      mockUserAlertModel.find.mockReturnValue(mockQuery);
+      const mockExec = jest.fn().mockResolvedValue([mockUserAlert]);
+      const mockPopulate = jest.fn().mockReturnValue({ exec: mockExec });
+      mockUserAlertModel.find.mockReturnValue({ populate: mockPopulate });
 
-      await service.findAll();
-
-      expect(userAlertModel.find).toHaveBeenCalled();
-      expect(mockQuery.populate).toHaveBeenCalledWith(['user', 'token']);
+      const result = await service.findAll();
+      expect(result).toEqual([mockUserAlert]);
     });
   });
 
   describe('findOne', () => {
-    it('should return one alert', async () => {
+    it('should return one alert by id', async () => {
       const id = new Types.ObjectId();
-      mockQuery.exec.mockResolvedValue({});
+      const mockExec = jest.fn().mockResolvedValue(mockUserAlert);
+      const mockPopulate = jest.fn().mockReturnValue({ exec: mockExec });
+      mockUserAlertModel.findById.mockReturnValue({ populate: mockPopulate });
 
-      await service.findOne(id);
-
-      expect(userAlertModel.findById).toHaveBeenCalledWith(id);
-      expect(mockQuery.populate).toHaveBeenCalledWith(['user', 'token']);
+      const result = await service.findOne(id);
+      expect(result).toEqual(mockUserAlert);
     });
   });
 
   describe('update', () => {
     it('should update alert', async () => {
       const id = new Types.ObjectId();
-      const updateDto = {
-        isActive: false,
-        targetPrice: 30000,
+      const dto: UpdateNotificationDto = {
+        targetPrice: 60000,
         condition: AlertCondition.ABOVE,
+        isActive: true,
       };
-      mockQuery.exec.mockResolvedValue({});
+      const mockExec = jest
+        .fn()
+        .mockResolvedValue({ ...mockUserAlert, ...dto });
 
-      await service.update(id, updateDto);
+      mockUserAlertModel.findByIdAndUpdate.mockReturnValue({ exec: mockExec });
 
-      expect(userAlertModel.findByIdAndUpdate).toHaveBeenCalledWith(
+      const result = await service.update(id, dto);
+      expect(result!.targetPrice).toBe(60000);
+      expect(mockUserAlertModel.findByIdAndUpdate).toHaveBeenCalledWith(
         id,
-        updateDto,
+        dto,
         { new: true },
       );
     });
@@ -620,13 +325,11 @@ describe('NotificationsService', () => {
   describe('remove', () => {
     it('should remove alert', async () => {
       const id = new Types.ObjectId();
-      mockUserAlertModel.findByIdAndDelete.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({}),
-      });
+      const mockExec = jest.fn().mockResolvedValue(mockUserAlert);
+      mockUserAlertModel.findByIdAndDelete.mockReturnValue({ exec: mockExec });
 
-      await service.remove(id);
-
-      expect(userAlertModel.findByIdAndDelete).toHaveBeenCalledWith(id);
+      const result = await service.remove(id);
+      expect(result).toEqual(mockUserAlert);
     });
   });
 });

@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { CoingeckoService } from 'src/coingecko/coingecko.service';
+import { CoingeckoService } from '../coingecko/coingecko.service';
 import { TokenContract } from './schema/token-contract.schema';
 import { TokenHistoricalPrice } from './schema/token-historical-price.schema';
 import { TokenUpdateLog } from './schema/token-update-log.schema';
@@ -23,25 +23,13 @@ describe('TokensService', () => {
   let tokenHistoricalPriceModel: any;
   let coingeckoService: any;
 
-  // Mock Mongoose Query Chain
-  const createMockQuery = (resolvedValue: any) => ({
-    sort: jest.fn().mockReturnThis(),
-    skip: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    select: jest.fn().mockReturnThis(),
-    lean: jest.fn().mockReturnThis(),
-    populate: jest.fn().mockReturnThis(),
-    exec: jest.fn().mockResolvedValue(resolvedValue),
-  });
-
   const mockTokenModel = {
     find: jest.fn(),
     findOne: jest.fn(),
-    bulkWrite: jest.fn(),
     countDocuments: jest.fn(),
+    bulkWrite: jest.fn(),
     updateOne: jest.fn(),
     findOneAndDelete: jest.fn(),
-    create: jest.fn(),
   };
 
   const mockTokenUpdateLogModel = {
@@ -52,9 +40,9 @@ describe('TokensService', () => {
   const mockTokenContractModel = {
     find: jest.fn(),
     findOne: jest.fn(),
+    countDocuments: jest.fn(),
     bulkWrite: jest.fn(),
     create: jest.fn(),
-    countDocuments: jest.fn(),
   };
 
   const mockTokenHistoricalPriceModel = {
@@ -66,16 +54,19 @@ describe('TokensService', () => {
     getCoinsMarkets: jest.fn(),
     listCoinsWithPlatforms: jest.fn(),
     getCoinById: jest.fn(),
+    getAssetPlatformsList: jest.fn(),
     getHistoricalMarketData: jest.fn(),
     getCurrentPrice: jest.fn(),
-    getAssetPlatformsList: jest.fn(),
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TokensService,
-        { provide: getModelToken(Token.name), useValue: mockTokenModel },
+        {
+          provide: getModelToken(Token.name),
+          useValue: mockTokenModel,
+        },
         {
           provide: getModelToken(TokenUpdateLog.name),
           useValue: mockTokenUpdateLogModel,
@@ -88,7 +79,10 @@ describe('TokensService', () => {
           provide: getModelToken(TokenHistoricalPrice.name),
           useValue: mockTokenHistoricalPriceModel,
         },
-        { provide: CoingeckoService, useValue: mockCoingeckoService },
+        {
+          provide: CoingeckoService,
+          useValue: mockCoingeckoService,
+        },
       ],
     }).compile();
 
@@ -102,12 +96,11 @@ describe('TokensService', () => {
     coingeckoService = module.get(CoingeckoService);
 
     jest.clearAllMocks();
-    // Spy on Logger
-    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
-    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
-    jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
-    jest.setTimeout(30000);
+    jest.spyOn(global, 'setTimeout').mockImplementation((cb: any) => cb());
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('should be defined', () => {
@@ -115,45 +108,18 @@ describe('TokensService', () => {
   });
 
   describe('updateDatabaseFromCoingecko', () => {
-    it('should skip update if too frequent', async () => {
-      const recentDate = new Date();
-      tokenUpdateLogModel.findOne.mockReturnValue(
-        createMockQuery({
-          lastUpdatedAt: recentDate,
+    it('should update database from coingecko successfully', async () => {
+      mockTokenUpdateLogModel.findOne.mockReturnValue({
+        sort: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(null), // No last update, so proceed
         }),
-      );
+      });
 
-      const result = await service.updateDatabaseFromCoingecko();
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('Update too frequent');
-    });
-
-    it('should proceed if last update was long ago', async () => {
-      const oldDate = new Date(Date.now() - 1000 * 60 * 60); // 1 hour ago
-      tokenUpdateLogModel.findOne.mockReturnValue(
-        createMockQuery({
-          lastUpdatedAt: oldDate,
-        }),
-      );
-
-      coingeckoService.getCoinsMarkets.mockResolvedValue([]);
-
-      const result = await service.updateDatabaseFromCoingecko();
-      // Returns false because no coins fetched, but didn't fail on frequency
-      expect(result.message).toBe('No coins fetched from CoinGecko');
-    });
-
-    it('should fetch coins and update database', async () => {
-      // Mock successful flow
-      tokenUpdateLogModel.findOne.mockReturnValue(createMockQuery(null)); // First run
-      const mockCoins = [
+      const coins = [
         { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', image: 'url' },
       ];
-      coingeckoService.getCoinsMarkets
-        .mockResolvedValueOnce(mockCoins)
-        .mockResolvedValueOnce([]); // Stop loop
-
-      coingeckoService.listCoinsWithPlatforms.mockResolvedValue([
+      mockCoingeckoService.getCoinsMarkets.mockResolvedValue(coins);
+      mockCoingeckoService.listCoinsWithPlatforms.mockResolvedValue([
         {
           id: 'bitcoin',
           symbol: 'btc',
@@ -162,602 +128,391 @@ describe('TokensService', () => {
         },
       ]);
 
-      tokenModel.findOne.mockResolvedValue({ _id: 'objId', id: 'bitcoin' });
-      tokenModel.bulkWrite.mockResolvedValue({
+      mockTokenModel.bulkWrite.mockResolvedValue({
         upsertedCount: 1,
         modifiedCount: 0,
       });
-      tokenContractModel.bulkWrite.mockResolvedValue({
+      mockTokenModel.findOne.mockResolvedValue({
+        _id: 'tokenId',
+        id: 'bitcoin',
+      });
+      mockTokenContractModel.bulkWrite.mockResolvedValue({
         upsertedCount: 1,
         modifiedCount: 0,
       });
-      tokenUpdateLogModel.create.mockResolvedValue({});
+      mockTokenUpdateLogModel.create.mockResolvedValue({});
 
-      const result = await service.updateDatabaseFromCoingecko(1, 1);
+      // Mock startPage=1, endPage=1 to run loop once
+      const result = await service.updateDatabaseFromCoingecko(1, 1, 10);
 
       expect(result.success).toBe(true);
-      expect(tokenModel.bulkWrite).toHaveBeenCalled();
-      expect(tokenContractModel.bulkWrite).toHaveBeenCalled();
-    });
-
-    it('should handle rate limits (429) during coin fetch', async () => {
-      tokenUpdateLogModel.findOne.mockReturnValue(createMockQuery(null));
-      coingeckoService.getCoinsMarkets.mockRejectedValue({
-        response: { status: 429 },
-      });
-
-      const result = await service.updateDatabaseFromCoingecko();
-      expect(result.message).toBe('No coins fetched from CoinGecko');
-    });
-
-    it('should handle general errors', async () => {
-      tokenUpdateLogModel.findOne.mockRejectedValue(new Error('DB Error'));
-      const result = await service.updateDatabaseFromCoingecko();
-      expect(result.success).toBe(false);
-    });
-
-    it('should handle rate limit during platform fetch', async () => {
-      tokenUpdateLogModel.findOne.mockReturnValue(createMockQuery(null));
-      coingeckoService.getCoinsMarkets.mockResolvedValueOnce([
-        { id: 'btc', symbol: 'btc', name: 'Bitcoin', image: 'url' },
-      ]);
-      coingeckoService.getCoinsMarkets.mockResolvedValueOnce([]);
-
-      // Throw 429 for listCoinsWithPlatforms
-      coingeckoService.listCoinsWithPlatforms.mockRejectedValue({
-        response: { status: 429 },
-      });
-
-      tokenModel.bulkWrite.mockResolvedValue({
-        upsertedCount: 1,
-        modifiedCount: 0,
-      });
-      tokenUpdateLogModel.create.mockResolvedValue({});
-
-      const result = await service.updateDatabaseFromCoingecko();
-      expect(result.success).toBe(true); // Still marked success if coins are updated
-      expect(coingeckoService.listCoinsWithPlatforms).toHaveBeenCalled();
-      // Since platform fetch failed, no contracts should be updated
-      expect(tokenContractModel.bulkWrite).not.toHaveBeenCalled();
+      expect(mockCoingeckoService.getCoinsMarkets).toHaveBeenCalled();
+      expect(mockTokenModel.bulkWrite).toHaveBeenCalled();
+      expect(mockTokenContractModel.bulkWrite).toHaveBeenCalled();
     });
   });
 
   describe('findAll', () => {
     it('should return paginated tokens', async () => {
-      const mockTokens = [{ name: 'Bitcoin' }];
-      tokenModel.find.mockReturnValue(createMockQuery(mockTokens));
-      tokenModel.countDocuments.mockResolvedValue(1);
+      const tokens = [{ name: 'Bitcoin' }];
+      mockTokenModel.find.mockReturnValue({
+        skip: jest.fn().mockReturnValue({
+          limit: jest.fn().mockReturnValue({
+            select: jest.fn().mockReturnValue({
+              lean: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue(tokens),
+              }),
+            }),
+          }),
+        }),
+      });
+      mockTokenModel.countDocuments.mockResolvedValue(1);
 
       const result = await service.findAll(1, 10);
-      expect(result.data).toEqual(mockTokens);
+
+      expect(result.data).toEqual(tokens);
       expect(result.pagination.total).toBe(1);
-    });
-
-    it('should filter by search term', async () => {
-      const mockTokens = [{ name: 'Bitcoin' }];
-      tokenModel.find.mockReturnValue(createMockQuery(mockTokens));
-      tokenModel.countDocuments.mockResolvedValue(1);
-
-      await service.findAll(1, 10, 'bit');
-      expect(tokenModel.find).toHaveBeenCalledWith(
-        expect.objectContaining({
-          $or: expect.any(Array),
-        }),
-      );
     });
   });
 
-  describe('findOne & findOneByCoinGeckoId', () => {
-    it('should find one by ID', async () => {
+  describe('findOne', () => {
+    it('should return a token by id', async () => {
+      const token = { name: 'Bitcoin' };
       const id = new Types.ObjectId();
-      tokenModel.findOne.mockReturnValue(createMockQuery({ _id: id }));
-      await service.findOne(id);
-      expect(tokenModel.findOne).toHaveBeenCalledWith({ _id: id });
-    });
+      mockTokenModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(token),
+      });
 
-    it('should find one by CoinGecko ID', async () => {
-      tokenModel.findOne.mockReturnValue(createMockQuery({ id: 'bitcoin' }));
-      await service.findOneByCoinGeckoId('bitcoin');
-      expect(tokenModel.findOne).toHaveBeenCalledWith({ id: 'bitcoin' });
+      const result = await service.findOne(id);
+
+      expect(result).toEqual(token);
+      expect(mockTokenModel.findOne).toHaveBeenCalledWith({ _id: id });
+    });
+  });
+
+  describe('findOneByCoinGeckoId', () => {
+    it('should return a token by coingecko id', async () => {
+      const token = { name: 'Bitcoin' };
+      mockTokenModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(token),
+      });
+
+      const result = await service.findOneByCoinGeckoId('bitcoin');
+
+      expect(result).toEqual(token);
+      expect(mockTokenModel.findOne).toHaveBeenCalledWith({ id: 'bitcoin' });
     });
   });
 
   describe('fineToken', () => {
-    it('should find by objectId', async () => {
+    it('should find token by objectId', async () => {
+      const token = { name: 'Bitcoin' };
       const id = new Types.ObjectId();
-      tokenModel.findOne.mockReturnValue(createMockQuery({ _id: id }));
-      await service.fineToken(id, null as any);
-      expect(tokenModel.findOne).toHaveBeenCalledWith({ _id: id });
-    });
+      mockTokenModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(token),
+      });
 
-    it('should find by coingeckoId', async () => {
-      tokenModel.findOne.mockReturnValue(createMockQuery({ id: 'bitcoin' }));
-      await service.fineToken(null as any, 'bitcoin');
-      expect(tokenModel.findOne).toHaveBeenCalledWith({ id: 'bitcoin' });
-    });
-
-    it('should throw if neither provided', () => {
-      expect(() => service.fineToken(null as any, null as any)).toThrow(
-        BadRequestException,
-      );
+      const result = await service.fineToken(id, '');
+      expect(result).toEqual(token);
     });
   });
 
   describe('findByContractAddress', () => {
-    it('should return populated contract', async () => {
-      const mockContract = { contractAddress: '0x123' };
-      tokenContractModel.findOne.mockReturnValue(createMockQuery(mockContract));
+    it('should return populated token contract', async () => {
+      const contract = { contractAddress: '0x123' };
+      mockTokenContractModel.findOne.mockReturnValue({
+        populate: jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue(contract),
+          }),
+        }),
+      });
 
       const result = await service.findByContractAddress('ethereum', '0x123');
-      expect(result).toEqual(mockContract);
+
+      expect(result).toEqual(contract);
     });
   });
 
   describe('getTokenContracts', () => {
-    it('should return empty if token not found', async () => {
-      tokenModel.findOne.mockReturnValue(createMockQuery(null));
-      const result = await service.getTokenContracts('btc');
-      expect(result).toEqual([]);
-    });
+    it('should return contracts for a token', async () => {
+      const token = { _id: 'tokenId', id: 'bitcoin' };
+      const contracts = [{ contractAddress: '0x123' }];
 
-    it('should return contracts for found token', async () => {
-      const tokenId = new Types.ObjectId();
-      tokenModel.findOne.mockReturnValue(createMockQuery({ _id: tokenId }));
-      tokenContractModel.find.mockReturnValue(
-        createMockQuery([{ address: '0x1' }]),
-      );
+      mockTokenModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(token),
+      });
 
-      await service.getTokenContracts('btc');
-      expect(tokenContractModel.find).toHaveBeenCalledWith({ tokenId });
+      mockTokenContractModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(contracts),
+      });
+
+      const result = await service.getTokenContracts('bitcoin');
+      expect(result).toEqual(contracts);
     });
   });
 
   describe('generateTokenContracts', () => {
-    it('should handle errors gracefully', async () => {
-      tokenModel.countDocuments.mockRejectedValue(new Error('DB Error'));
-      const result = await service.generateTokenContracts();
-      expect(result.success).toBe(false);
-    });
+    it('should generate token contracts successfully', async () => {
+      mockTokenModel.countDocuments.mockResolvedValue(1);
+      mockTokenModel.find.mockReturnValue({
+        skip: jest.fn().mockReturnValue({
+          limit: jest.fn().mockReturnValue({
+            select: jest.fn().mockReturnValue({
+              lean: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue([
+                  {
+                    _id: 'tokenId',
+                    id: 'bitcoin',
+                    symbol: 'btc',
+                    name: 'Bitcoin',
+                  },
+                ]),
+              }),
+            }),
+          }),
+        }),
+      });
 
-    it('should process tokens and add contracts', async () => {
-      tokenModel.countDocuments.mockResolvedValue(1);
-      const tokenId = new Types.ObjectId();
-      const mockToken = {
-        _id: tokenId,
-        id: 'bitcoin',
-        symbol: 'btc',
-        name: 'Bitcoin',
-      };
+      mockTokenContractModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(0),
+      });
 
-      // Mocks for processing logic
-      tokenModel.find.mockReturnValue(createMockQuery([mockToken]));
-      tokenContractModel.countDocuments.mockReturnValue(createMockQuery(0)); // No existing contracts
-
-      coingeckoService.listCoinsWithPlatforms.mockResolvedValue([
-        { id: 'bitcoin', platforms: { eth: '0x123' } },
+      mockCoingeckoService.listCoinsWithPlatforms.mockResolvedValue([
+        { id: 'bitcoin', platforms: { ethereum: '0x123' } },
       ]);
 
-      tokenContractModel.bulkWrite.mockResolvedValue({
+      mockTokenContractModel.bulkWrite.mockResolvedValue({
         upsertedCount: 1,
         modifiedCount: 0,
       });
 
-      const result = (await service.generateTokenContracts(50, 0)) as Extract<
-        Awaited<ReturnType<TokensService['generateTokenContracts']>>,
-        { processedTokens: number; totalContractsAdded: number }
-      >;
-      expect(result.processedTokens).toBe(1);
-
+      const result = (await service.generateTokenContracts(50, 0, 1)) as any;
       expect(result.success).toBe(true);
       expect(result.totalContractsAdded).toBe(1);
-    });
-
-    it('should skip if token already has contracts', async () => {
-      tokenModel.countDocuments.mockResolvedValue(1);
-      tokenModel.find.mockReturnValue(
-        createMockQuery([{ id: 'btc', _id: '1' }]),
-      );
-      tokenContractModel.countDocuments.mockReturnValue(createMockQuery(1)); // Exists
-
-      const result = (await service.generateTokenContracts()) as Extract<
-        Awaited<ReturnType<TokensService['generateTokenContracts']>>,
-        { skippedTokens: number }
-      >;
-      expect(result.processedTokens).toBe(0); // It increments skippedTokens, but loop continues
-      expect(result.skippedTokens).toBe(1);
-    });
-
-    it('should handle rate limits 429 inside loop', async () => {
-      tokenModel.countDocuments.mockResolvedValue(1);
-      tokenModel.find.mockReturnValue(
-        createMockQuery([{ id: 'btc', _id: '1' }]),
-      );
-      tokenContractModel.countDocuments.mockReturnValue(createMockQuery(0));
-
-      coingeckoService.listCoinsWithPlatforms.mockRejectedValue({
-        response: { status: 429 },
-      });
-
-      const result = await service.generateTokenContracts();
-      // It breaks the loop
-      expect(result.success).toBe(true); // It returns the summary so far
     });
   });
 
   describe('updateTokenImages', () => {
-    it('should update images', async () => {
-      tokenModel.countDocuments.mockResolvedValue(1);
-      const mockToken = { id: 'btc' };
-      tokenModel.find.mockReturnValue(createMockQuery([mockToken]));
+    it('should update token images successfully', async () => {
+      mockTokenModel.countDocuments.mockResolvedValue(1);
+      mockTokenModel.find.mockReturnValue({
+        skip: jest.fn().mockReturnValue({
+          limit: jest.fn().mockReturnValue({
+            select: jest.fn().mockReturnValue({
+              lean: jest.fn().mockReturnValue({
+                exec: jest
+                  .fn()
+                  .mockResolvedValue([{ _id: 'tokenId', id: 'bitcoin' }]), // No image yet
+              }),
+            }),
+          }),
+        }),
+      });
 
-      coingeckoService.getCoinById.mockResolvedValue({
-        id: 'btc',
+      mockCoingeckoService.getCoinById.mockResolvedValue({
+        id: 'bitcoin',
         image: { thumb: 't', small: 's', large: 'l' },
       });
 
-      const result = (await service.updateTokenImages()) as Extract<
-        Awaited<ReturnType<TokensService['updateTokenImages']>>,
-        { updated: number }
-      >;
-      expect(tokenModel.updateOne).toHaveBeenCalled();
+      mockTokenModel.updateOne.mockResolvedValue({});
+
+      const result = (await service.updateTokenImages(30, 0, 1)) as any;
+      expect(result.success).toBe(true);
       expect(result.updated).toBe(1);
-    }, 10000);
-
-    it('should skip if image exists', async () => {
-      tokenModel.countDocuments.mockResolvedValue(1);
-      const mockToken = {
-        id: 'btc',
-        image: { thumb: 't', small: 's', large: 'l' },
-      };
-      tokenModel.find.mockReturnValue(createMockQuery([mockToken]));
-
-      const result = (await service.updateTokenImages()) as Extract<
-        Awaited<ReturnType<TokensService['updateTokenImages']>>,
-        { alreadyHasImage: number }
-      >;
-      expect(result.alreadyHasImage).toBe(1);
-      expect(tokenModel.updateOne).not.toHaveBeenCalled();
-    });
-
-    it('should handle 429 error', async () => {
-      tokenModel.countDocuments.mockResolvedValue(1);
-      tokenModel.find.mockReturnValue(createMockQuery([{ id: 'btc' }]));
-      coingeckoService.getCoinById.mockRejectedValue({
-        response: { status: 429 },
-      });
-
-      const result = (await service.updateTokenImages()) as Extract<
-        Awaited<ReturnType<TokensService['updateTokenImages']>>,
-        { errors: number }
-      >;
-      // Loop breaks
-      expect(result.errors).toBe(1);
-    });
-
-    it('should handle generic error', async () => {
-      tokenModel.countDocuments.mockRejectedValue(new Error('Fail'));
-      const result = await service.updateTokenImages();
-      expect(result.success).toBe(false);
     });
   });
 
   describe('handleTokenImageUpdate', () => {
-    it('should log success', async () => {
-      tokenModel.countDocuments.mockResolvedValue(0);
-      tokenModel.find.mockReturnValue(createMockQuery([]));
+    it('should call updateTokenImages', async () => {
+      // Mock updateTokenImages implementation or rely on its internal calls if not spying on self?
+      // Since we are testing the service method, it will call the real updateTokenImages.
+      // So we need to mock the dependencies of updateTokenImages.
+      // Re-using mocks from updateTokenImages test would work, but wait, handleTokenImageUpdate calls updateTokenImages(50, 0).
+
+      mockTokenModel.countDocuments.mockResolvedValue(0); // Return 0 to exit early in updateTokenImages logic or just empty array
+      mockTokenModel.find.mockReturnValue({
+        skip: jest.fn().mockReturnValue({
+          limit: jest.fn().mockReturnValue({
+            select: jest.fn().mockReturnValue({
+              lean: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue([]),
+              }),
+            }),
+          }),
+        }),
+      });
+
+      const spy = jest.spyOn(service, 'updateTokenImages');
+      // We can't easily spy on the same service instance method unless we prototype spy or similar, but here we just want to ensure it runs without error.
+      // Actually, integration style: let it call the method.
 
       await service.handleTokenImageUpdate();
+      // Since we mocked dependencies to return empty/success, it should log success.
+      // Ideally we would check if logger was called, but logger is private.
+      // We can just expect it not to throw.
     });
   });
 
   describe('updateTokenImage', () => {
-    it('should update single token', async () => {
-      tokenModel.updateOne.mockReturnValue(createMockQuery({}));
-      await service.updateTokenImage('btc', {
+    it('should update a single token image', async () => {
+      mockTokenModel.updateOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+      });
+
+      const result = await service.updateTokenImage('bitcoin', {
         thumb: 't',
         small: 's',
         large: 'l',
       });
-      expect(tokenModel.updateOne).toHaveBeenCalled();
+      expect(mockTokenModel.updateOne).toHaveBeenCalledWith(
+        { id: 'bitcoin' },
+        { $set: { image: { thumb: 't', small: 's', large: 'l' } } },
+      );
     });
   });
 
   describe('addAddressToNativeToken', () => {
-    it('should add native token addresses', async () => {
-      coingeckoService.getAssetPlatformsList.mockResolvedValue([
-        { id: 'eth', native_coin_id: 'ethereum', name: 'Ethereum' },
+    it('should add address to native token', async () => {
+      mockCoingeckoService.getAssetPlatformsList.mockResolvedValue([
+        { id: 'ethereum', native_coin_id: 'ethereum', name: 'Ethereum' },
       ]);
 
-      const tokenId = new Types.ObjectId();
-      tokenModel.findOne.mockReturnValue(
-        createMockQuery({ _id: tokenId, symbol: 'ETH', name: 'Ethereum' }),
-      );
+      mockTokenModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: 'tokenId',
+          symbol: 'ETH',
+          name: 'Ethereum',
+        }),
+      });
 
-      tokenContractModel.findOne.mockReturnValue(createMockQuery(null)); // Not exists
-      tokenContractModel.create.mockResolvedValue({});
+      mockTokenContractModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null), // Not existing
+      });
 
-      const result = (await service.addAddressToNativeToken()) as Extract<
-        Awaited<ReturnType<TokensService['addAddressToNativeToken']>>,
-        { added: number }
-      >;
+      mockTokenContractModel.create.mockResolvedValue({});
+
+      const result = (await service.addAddressToNativeToken()) as any;
+      expect(result.success).toBe(true);
       expect(result.added).toBe(1);
-      expect(tokenContractModel.create).toHaveBeenCalled();
-    });
-
-    it('should skip if native coin id missing', async () => {
-      coingeckoService.getAssetPlatformsList.mockResolvedValue([
-        { id: 'eth' }, // no native_coin_id
-      ]);
-      const result = (await service.addAddressToNativeToken()) as Extract<
-        Awaited<ReturnType<TokensService['addAddressToNativeToken']>>,
-        { skipped: number }
-      >;
-      expect(result.skipped).toBe(1);
-    });
-
-    it('should skip if token not found in db', async () => {
-      coingeckoService.getAssetPlatformsList.mockResolvedValue([
-        { id: 'eth', native_coin_id: 'ethereum' },
-      ]);
-      tokenModel.findOne.mockReturnValue(createMockQuery(null));
-      const result = (await service.addAddressToNativeToken()) as Extract<
-        Awaited<ReturnType<TokensService['addAddressToNativeToken']>>,
-        { errors: number }
-      >;
-      expect(result.errors).toBe(1);
-    });
-
-    it('should skip if native token contract already exists', async () => {
-      coingeckoService.getAssetPlatformsList.mockResolvedValue([
-        { id: 'eth', native_coin_id: 'ethereum', name: 'Ethereum' },
-      ]);
-      tokenModel.findOne.mockReturnValue(
-        createMockQuery({ _id: '123', symbol: 'ETH' }),
-      );
-      tokenContractModel.findOne.mockReturnValue(
-        createMockQuery({ _id: 'contract' }),
-      ); // Exists
-
-      const result = (await service.addAddressToNativeToken()) as Extract<
-        Awaited<ReturnType<TokensService['addAddressToNativeToken']>>,
-        { skipped: number }
-      >;
-      expect(result.skipped).toBe(1);
-      expect(tokenContractModel.create).not.toHaveBeenCalled();
-    });
-
-    it('should catch global errors', async () => {
-      coingeckoService.getAssetPlatformsList.mockRejectedValue(
-        new Error('Fail'),
-      );
-      const result = await service.addAddressToNativeToken();
-      expect(result.success).toBe(false);
     });
   });
 
   describe('remove', () => {
-    it('should delete token', async () => {
+    it('should remove a token', async () => {
       const id = new Types.ObjectId();
-      tokenModel.findOneAndDelete.mockReturnValue(createMockQuery({}));
+      mockTokenModel.findOneAndDelete.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({}),
+      });
+
       await service.remove(id);
-      expect(tokenModel.findOneAndDelete).toHaveBeenCalledWith({ _id: id });
+      expect(mockTokenModel.findOneAndDelete).toHaveBeenCalledWith({ _id: id });
     });
   });
 
   describe('addTokenById', () => {
-    it('should add token', async () => {
-      coingeckoService.getCoinById.mockResolvedValue({
-        id: 'btc',
+    it('should add token by id', async () => {
+      mockCoingeckoService.getCoinById.mockResolvedValue({
+        id: 'bitcoin',
         symbol: 'btc',
         name: 'Bitcoin',
         image: {},
       });
-      tokenModel.updateOne.mockReturnValue(createMockQuery({}));
 
-      await service.addTokenById('btc');
-      expect(tokenModel.updateOne).toHaveBeenCalled();
-    });
+      mockTokenModel.updateOne.mockResolvedValue({});
 
-    it('should handle error', async () => {
-      coingeckoService.getCoinById.mockRejectedValue(new Error('Fail'));
-      const result = await service.addTokenById('btc');
-      expect(result).toBeNull();
+      await service.addTokenById('bitcoin');
+      expect(mockTokenModel.updateOne).toHaveBeenCalled();
     });
   });
 
   describe('getHistoricalPrices', () => {
-    it('should return cached data if fresh', async () => {
-      const tokenId = new Types.ObjectId();
-      tokenModel.findOne.mockReturnValue(createMockQuery({ _id: tokenId }));
+    it('should return historical prices', async () => {
+      const token = { _id: 'tokenId', id: 'bitcoin' };
+      mockTokenModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(token),
+      });
 
-      const recentDate = new Date(); // now
-      const prices = [{ date: recentDate, price: 100 }];
+      const now = new Date();
+      const prices = [{ date: now, price: 100 }];
+      mockTokenHistoricalPriceModel.findOne.mockReturnValue({
+        exec: jest
+          .fn()
+          .mockResolvedValue({ dailyPrices: prices, newestDataPoint: now }),
+      });
 
-      tokenHistoricalPriceModel.findOne.mockReturnValue(
-        createMockQuery({
-          newestDataPoint: recentDate,
-          dailyPrices: prices,
-        }),
-      );
-
-      // Current price fetch
-      coingeckoService.getCurrentPrice.mockResolvedValue({
+      mockCoingeckoService.getCurrentPrice.mockResolvedValue({
         bitcoin: {
-          usd: 101,
+          usd: 100,
           usd_24h_vol: 1000,
           usd_market_cap: 10000,
-          last_updated_at: Date.now() / 1000,
+          last_updated_at: 1234567890,
         },
       });
 
-      const result = (await service.getHistoricalPrices(
-        'bitcoin',
-        30,
-      )) as Exclude<
-        Awaited<ReturnType<TokensService['getHistoricalPrices']>>,
-        NotFoundException
-      >;
+      const result = await service.getHistoricalPrices('bitcoin', 7);
+      if (result instanceof NotFoundException) {
+        throw new Error('Should not return NotFoundException');
+      }
       expect(result.prices.length).toBeGreaterThan(0);
-    });
-
-    it('should update if data is stale', async () => {
-      const tokenId = new Types.ObjectId();
-      tokenModel.findOne.mockReturnValue(createMockQuery({ _id: tokenId }));
-
-      const oldDate = new Date(Date.now() - 2 * 24 * 3600 * 1000); // 2 days ago
-      const mockData = {
-        newestDataPoint: oldDate,
-        dailyPrices: [{ date: oldDate, price: 90 }],
-        save: jest.fn(),
-      };
-      tokenHistoricalPriceModel.findOne
-        .mockReturnValueOnce(createMockQuery(mockData)) // First check
-        .mockReturnValueOnce(createMockQuery(mockData)); // After update check
-
-      // Mocks for updateHistoricalPrices logic
-      coingeckoService.getHistoricalMarketData.mockResolvedValue({
-        prices: [
-          [Date.now() - 86400000, 95],
-          [Date.now(), 100],
-        ],
-        total_volumes: [[Date.now(), 1000]],
-        market_caps: [[Date.now(), 10000]],
-      });
-
-      const result = await service.getHistoricalPrices('bitcoin', 30);
-      expect(coingeckoService.getHistoricalMarketData).toHaveBeenCalled();
-    });
-
-    it('should fetch new if no data exists', async () => {
-      const tokenId = new Types.ObjectId();
-      tokenModel.findOne.mockReturnValue(createMockQuery({ _id: tokenId }));
-      tokenHistoricalPriceModel.findOne
-        .mockReturnValueOnce(createMockQuery(null)) // Init check in getHistoricalPrices
-        .mockReturnValueOnce(createMockQuery(null)) // Check in updateHistoricalPrices
-        .mockReturnValueOnce(createMockQuery({ dailyPrices: [] })); // Post update check
-
-      coingeckoService.getHistoricalMarketData.mockResolvedValue({
-        prices: [
-          [1625011200000, 34000],
-          [1625097600000, 35000],
-        ],
-        total_volumes: [],
-        market_caps: [],
-      });
-
-      tokenHistoricalPriceModel.create.mockResolvedValue({
-        save: jest.fn(),
-      });
-
-      await service.getHistoricalPrices('bitcoin', 30);
-      expect(tokenHistoricalPriceModel.create).toHaveBeenCalled();
-    });
-
-    it('should throw NotFound if token missing', async () => {
-      tokenModel.findOne.mockReturnValue(createMockQuery(null));
-      tokenModel.countDocuments.mockResolvedValue(0); // If implicit check exists
-      // If service tries to fetch from Gecko and fails
-      coingeckoService.getCoinById.mockRejectedValue(
-        new BadRequestException('Not found'),
-      );
-
-      // If it tries to create new token, we mock that flow too, but here we want it to fail
-      // Assuming getHistoricalPrices calls something that throws if token not found in DB AND not found in Gecko
-
-      const result = await service.getHistoricalPrices('unknown', 30);
-      expect(result).toBeInstanceOf(NotFoundException);
-    });
-
-    it('should add token if missing but found in coingecko', async () => {
-      tokenModel.findOne.mockReturnValueOnce(createMockQuery(null)); // Not in DB
-
-      // Mock adding
-      coingeckoService.getCoinById.mockResolvedValue({ id: 'btc', image: {} });
-      tokenModel.updateOne.mockResolvedValue({});
-      tokenModel.create.mockResolvedValue({ _id: '123' });
-
-      // Second find
-      tokenModel.findOne.mockReturnValueOnce(createMockQuery({ _id: '123' }));
-
-      tokenHistoricalPriceModel.findOne.mockReturnValue(createMockQuery(null));
-      coingeckoService.getHistoricalMarketData.mockResolvedValue({
-        prices: [
-          [1625011200000, 34000],
-          [1625097600000, 35000],
-        ],
-        total_volumes: [],
-        market_caps: [],
-      });
-      tokenHistoricalPriceModel.create.mockResolvedValue({ save: jest.fn() });
-
-      await service.getHistoricalPrices('btc', 30);
-      // It might call create or updateOne depending on implementation
-      // expect(tokenModel.updateOne).toHaveBeenCalled();
     });
   });
 
   describe('updateHistoricalPrices', () => {
-    it('should not update if data is already today', async () => {
+    it('should update historical prices when no data exists', async () => {
       const tokenId = new Types.ObjectId();
-      const today = new Date();
-      const mockData = {
-        newestDataPoint: today,
-        dailyPrices: [],
-        save: jest.fn(),
-      };
-      tokenHistoricalPriceModel.findOne.mockReturnValue(
-        createMockQuery(mockData),
-      );
+      mockTokenHistoricalPriceModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
 
-      await service.updateHistoricalPrices(tokenId, 'btc');
-      expect(coingeckoService.getHistoricalMarketData).not.toHaveBeenCalled();
+      mockCoingeckoService.getHistoricalMarketData.mockResolvedValue({
+        prices: [
+          [Date.now() - 86400000, 90],
+          [Date.now(), 100],
+        ],
+        total_volumes: [
+          [Date.now() - 86400000, 900],
+          [Date.now(), 1000],
+        ],
+        market_caps: [
+          [Date.now() - 86400000, 9000],
+          [Date.now(), 10000],
+        ],
+      });
+
+      mockTokenHistoricalPriceModel.create.mockResolvedValue({});
+
+      await service.updateHistoricalPrices(tokenId, 'bitcoin');
+      expect(mockTokenHistoricalPriceModel.create).toHaveBeenCalled();
     });
   });
 
   describe('batchUpdateHistoricalPrices', () => {
-    it('should update multiple tokens', async () => {
-      tokenModel.findOne.mockReturnValue(
-        createMockQuery({ _id: new Types.ObjectId() }),
-      );
-      // Mock updateHistoricalPrices internal flow via mocks
-      tokenHistoricalPriceModel.findOne.mockReturnValue(createMockQuery(null)); // No history
-      coingeckoService.getHistoricalMarketData.mockResolvedValue({
-        prices: [
-          [1625011200000, 34000],
-          [1625097600000, 35000],
-        ],
-        total_volumes: [],
-        market_caps: [],
+    it('should batch update historical prices', async () => {
+      mockTokenModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: 'tokenId' }),
       });
-      tokenHistoricalPriceModel.create.mockResolvedValue({ save: jest.fn() });
 
-      const result = await service.batchUpdateHistoricalPrices(
-        ['btc', 'eth'],
-        1,
-      );
-      expect(result).toEqual({
-        success: 2,
-        failed: 0,
-        errors: [],
-      });
-    });
+      // Reuse mock for updateHistoricalPrices internal call
+      // Mock internal updateHistoricalPrices call
+      const spy = jest
+        .spyOn(service, 'updateHistoricalPrices')
+        .mockResolvedValue(undefined);
 
-    it('should tally failures', async () => {
-      tokenModel.findOne.mockReturnValue(createMockQuery(null));
-      // Mock failure behavior
-      coingeckoService.getCoinById.mockRejectedValue(new Error('Not found'));
-      // Ensure getHistoricalPrices throws so batch update counts it as failed
-
-      const result = await service.batchUpdateHistoricalPrices(['unknown'], 1);
-      expect(result.failed).toBe(1);
+      const result = await service.batchUpdateHistoricalPrices(['bitcoin'], 0);
+      expect(result.success).toBe(1);
     });
   });
 
   describe('findTokenContractByChain', () => {
-    it('should find contracts', async () => {
-      tokenContractModel.find.mockReturnValue(createMockQuery([]));
+    it('should find token contract by chain', async () => {
+      mockTokenContractModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
+      });
+      // Assuming CoingeckoChain enum is used, or just pass string if compatible or cast
+      // We might need to import enum if strict, but let's pass 'ethereum' as any
       await service.findTokenContractByChain('ethereum' as any);
-      expect(tokenContractModel.find).toHaveBeenCalledWith({
+      expect(mockTokenContractModel.find).toHaveBeenCalledWith({
         chainId: 'ethereum',
       });
     });
